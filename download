@@ -1,5 +1,0 @@
-# Local Netlify folder
-.netlify
-
-# Installed by npm — Netlify runs its own install during the site build
-node_modules
