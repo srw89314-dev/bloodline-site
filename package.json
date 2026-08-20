@@ -1,0 +1,10 @@
+{
+  "name": "bloodline-game",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Bloodline - a multi-era, multi-generational life-simulation game. Static site (public/) plus Netlify Functions backend (netlify/functions/) for optional cloud save, play stats, and player feedback.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "google-auth-library": "^9.14.1"
+  }
+}

@@ -1,0 +1,2263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloodline — A Multi-Era Life Sim</title>
+<!-- Optional cloud save / sign-in. Leave the content blank to keep the game
+     fully offline (Guest mode still works with no client ID at all) — paste
+     your Google OAuth Web Client ID here once you've created one to turn on
+     "Sign in with Google" in the save-choice modal. See design-notes.md. -->
+<meta name="google-signin-client-id" content="">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root{
+    --bg:#12141c; --panel:#1a1e2a; --border:#2b3142;
+    --text:#e9ebf2; --text-dim:#9aa1b4;
+    --accent:#7c9eff; --accent-2:#c98bff;
+    --good:#4fd18b; --warn:#f2c94c; --bad:#f2685c; --money:#4fd18b;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; font-family:'Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,sans-serif;
+    background:radial-gradient(1200px 800px at 50% -10%, var(--bg-glow, #232a3d) 0%, var(--bg) 60%);
+    transition:background .4s ease;
+    color:var(--text); display:flex; justify-content:center; padding:24px 16px 60px;
+  }
+  #app{ width:100%; max-width:1040px; }
+  header.top{ text-align:center; margin-bottom:20px; }
+  header.top h1{
+    font-size:1.8rem; margin:0 0 4px; letter-spacing:0.5px;
+    background:linear-gradient(90deg,var(--accent),var(--accent-2));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header.top p{ margin:0; color:var(--text-dim); font-size:0.9rem; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:22px; margin-bottom:16px; }
+
+  /* setup */
+  .era-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:16px 0; }
+  .era-option{ border:2px solid var(--border); border-radius:12px; padding:14px; cursor:pointer; transition:border-color .15s, transform .15s; background:#161a26; }
+  .era-option:hover{ transform:translateY(-2px); }
+  .era-option.selected{ border-color:var(--accent); background:#1c2338; }
+  .era-option h3{ margin:0 0 4px; font-size:1rem; }
+  .era-option span{ color:var(--text-dim); font-size:0.8rem; }
+  label{ display:block; font-size:0.85rem; color:var(--text-dim); margin:14px 0 6px; }
+  input[type=text]{ width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:#0f1119; color:var(--text); font-size:1rem; }
+  input[type=text]:focus{ outline:none; border-color:var(--accent); }
+  button{ font-family:inherit; font-size:0.9rem; font-weight:600; border:none; border-radius:10px; padding:10px 16px; cursor:pointer; transition:filter .15s, transform .1s; }
+  button:active{ transform:scale(0.98); }
+  button:disabled{ opacity:0.35; cursor:not-allowed; }
+  .btn-primary{ background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#0f1119; }
+  .btn-primary:hover:not(:disabled){ filter:brightness(1.08); }
+  .btn-secondary{ background:#262c3d; color:var(--text); border:1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled){ filter:brightness(1.15); }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+
+  /* game */
+  .game-layout{ display:grid; grid-template-columns:280px 1fr; gap:16px; }
+  @media (max-width:760px){ .game-layout{ grid-template-columns:1fr; } }
+  .char-header{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .avatar-svg{ flex-shrink:0; border-radius:50%; }
+  .char-header h2{ margin:0; font-size:1.2rem; }
+  .char-header .meta{ color:var(--text-dim); font-size:0.82rem; }
+  .stat-row{ margin-bottom:10px; }
+  .stat-label{ display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-dim); margin-bottom:4px; }
+  .stat-bar{ height:8px; border-radius:6px; background:#0f1119; overflow:hidden; border:1px solid var(--border); }
+  .stat-fill{ height:100%; border-radius:6px; transition:width .3s ease; }
+  .stat-health .stat-fill{ background:var(--bad); }
+  .stat-happiness .stat-fill{ background:var(--warn); }
+  .stat-smarts .stat-fill{ background:var(--accent); }
+  .stat-looks .stat-fill{ background:var(--accent-2); }
+  .stat-imagination .stat-fill{ background:#e0a4f2; }
+  .money-line{ display:flex; justify-content:space-between; align-items:center; background:#0f1119; border:1px solid var(--border); border-radius:10px; padding:9px 12px; margin-top:12px; font-weight:600; font-size:0.9rem; }
+  .money-line .amt{ color:var(--money); }
+  .job-line{ font-size:0.78rem; color:var(--text-dim); margin-top:6px; }
+
+  .rel-section h4, .owned-section h4, .legacy-box h4{ margin:14px 0 8px; color:var(--text); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); }
+  .rel-item{ margin-bottom:8px; }
+  .rel-name{ display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:3px; }
+  .rel-name .role{ color:var(--text-dim); font-weight:400; }
+  .rel-bar{ height:6px; border-radius:4px; background:#0f1119; overflow:hidden; border:1px solid var(--border); }
+  .rel-fill{ height:100%; border-radius:4px; background:var(--accent-2); }
+  .owned-list{ font-size:0.78rem; color:var(--text-dim); line-height:1.6; }
+  .skills-box{ font-size:0.78rem; color:var(--text-dim); line-height:1.7; }
+  .skills-box strong{ color:var(--text); }
+  .legacy-box{ font-size:0.76rem; color:var(--text-dim); max-height:140px; overflow-y:auto; }
+  .legacy-box div{ margin-bottom:6px; line-height:1.4; }
+  .divider{ border-top:1px solid var(--border); margin-top:14px; padding-top:2px; }
+
+  .tab-bar{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .tab-btn{ background:#161a26; border:1px solid var(--border); color:var(--text-dim); padding:8px 14px; border-radius:9px; font-size:0.82rem; font-weight:600; }
+  .tab-btn:hover{ border-color:var(--accent); color:var(--text); }
+  .tab-btn.active{ background:var(--accent); color:#0f1119; border-color:var(--accent); }
+  #tab-panel{ margin-bottom:16px; }
+  #tab-panel:empty{ margin-bottom:0; }
+
+  .actions-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .actions-header h3{ margin:0; font-size:1rem; }
+  .actions-left{ font-size:0.8rem; color:var(--text-dim); }
+  .action-cat{ font-size:0.72rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-dim); margin:14px 0 6px; }
+  .action-cat:first-of-type{ margin-top:0; }
+  .action-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
+  .action-btn{ text-align:left; background:#161a26; border:1px solid var(--border); color:var(--text); padding:10px 12px; border-radius:9px; font-size:0.84rem; font-weight:500; }
+  .action-btn:hover:not(:disabled){ border-color:var(--accent); background:#1c2338; }
+  .action-btn .sub{ display:block; color:var(--text-dim); font-weight:400; font-size:0.74rem; margin-top:2px; }
+
+  .end-year-row{ margin-top:16px; display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; }
+
+  .event-feed{ max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px; margin-top:16px; }
+  .event{ background:#161a26; border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:9px 12px; font-size:0.85rem; line-height:1.4; }
+  .event.good{ border-left-color:var(--good); }
+  .event.bad{ border-left-color:var(--bad); }
+  .event.milestone{ border-left-color:var(--accent-2); font-weight:600; }
+  .event.legendary{ border-left-color:var(--warn); font-weight:600; background:#1f1a10; }
+
+  /* family tree */
+  .tree-overlay{ position:fixed; inset:0; background:rgba(8,9,14,0.82); backdrop-filter:blur(2px); display:none; align-items:flex-start; justify-content:center; z-index:50; padding:40px 16px; overflow-y:auto; }
+  .tree-panel{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:26px; max-width:560px; width:100%; position:relative; }
+  .tree-panel h2{ margin:0 0 4px; }
+  .tree-sub{ color:var(--text-dim); font-size:0.85rem; margin-bottom:22px; }
+  .tree-close{ position:absolute; top:16px; right:16px; background:#262c3d; border:1px solid var(--border); color:var(--text); width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:1rem; line-height:1; }
+  .tree-chain{ position:relative; padding-left:26px; }
+  .tree-chain::before{ content:''; position:absolute; left:9px; top:6px; bottom:6px; width:2px; background:var(--border); }
+  .tree-node{ position:relative; margin-bottom:16px; padding:14px 16px; background:#161a26; border:1px solid var(--border); border-radius:10px; }
+  .tree-node:last-child{ margin-bottom:0; }
+  .tree-node::before{ content:''; position:absolute; left:-26px; top:19px; width:12px; height:12px; border-radius:50%; background:var(--node-color, var(--accent)); border:2px solid var(--panel); box-shadow:0 0 0 2px var(--node-color, var(--accent)); }
+  .tree-node.current{ border-color:var(--node-color, var(--accent)); background:#1c2338; }
+  .tree-node .tn-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:2px; }
+  .tree-node .tn-name-row{ display:flex; align-items:center; gap:8px; }
+  .tree-node .tn-name{ font-size:1rem; font-weight:700; }
+  .tree-node .tn-gen{ font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); white-space:nowrap; }
+  .tree-node .tn-era{ font-size:0.76rem; color:var(--node-color, var(--accent)); font-weight:600; margin-bottom:6px; }
+  .tree-node .tn-detail{ font-size:0.8rem; color:var(--text-dim); line-height:1.5; }
+  .tree-node .tn-quote{ margin-top:6px; font-style:italic; }
+  .tree-node .tn-trait{ display:inline-block; margin-top:8px; font-size:0.72rem; padding:3px 9px; border-radius:20px; background:#0f1119; border:1px solid var(--border); color:var(--text-dim); }
+  .tree-empty{ color:var(--text-dim); font-size:0.9rem; }
+
+  /* branching mini-storylines */
+  .story-overlay{ position:fixed; inset:0; background:rgba(8,9,14,0.88); backdrop-filter:blur(2px); display:none; align-items:center; justify-content:center; z-index:60; padding:24px; }
+  .story-panel{ background:var(--panel); border:1px solid var(--accent); border-radius:16px; padding:26px; max-width:440px; width:100%; text-align:center; }
+  .story-prompt{ color:var(--text); font-size:0.95rem; line-height:1.5; margin:0 0 20px; }
+  .story-choices{ display:flex; flex-direction:column; gap:10px; }
+  .story-choice-btn{ width:100%; }
+
+  /* achievements */
+  .ach-list{ display:flex; flex-direction:column; gap:8px; }
+  .ach-row{ display:flex; align-items:flex-start; gap:10px; padding:10px 12px; background:#161a26; border:1px solid var(--border); border-radius:10px; opacity:0.55; }
+  .ach-row.got{ opacity:1; border-color:var(--warn); background:#1f1a10; }
+  .ach-icon{ font-size:1.1rem; line-height:1.3; }
+  .ach-body{ display:flex; flex-direction:column; }
+  .ach-label{ font-size:0.86rem; font-weight:700; }
+  .ach-desc{ font-size:0.76rem; color:var(--text-dim); margin-top:2px; }
+  .event .tag{ color:var(--text-dim); font-weight:400; font-size:0.72rem; display:block; margin-top:2px; }
+
+  .death-panel{ text-align:center; }
+  .death-panel h2{ color:var(--bad); margin-bottom:4px; }
+  .death-panel .epitaph{ color:var(--text-dim); margin-bottom:18px; }
+  .stat-summary{ display:flex; justify-content:center; gap:22px; flex-wrap:wrap; margin:16px 0; }
+  .stat-summary div{ text-align:center; }
+  .stat-summary .val{ font-size:1.3rem; font-weight:700; }
+  .stat-summary .lbl{ font-size:0.75rem; color:var(--text-dim); }
+  .share-box{ margin:18px auto; max-width:480px; text-align:left; background:#161a26; border:1px solid var(--border); border-radius:10px; padding:14px; }
+  .share-box h4{ margin:0 0 8px; font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; }
+  .share-box textarea{ width:100%; min-height:170px; background:#0f1119; border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:'Consolas',Menlo,monospace; font-size:0.82rem; line-height:1.55; padding:10px; resize:vertical; box-sizing:border-box; }
+  footer{ text-align:center; color:var(--text-dim); font-size:0.75rem; margin-top:10px; }
+
+  /* cloud save / feedback (optional — game works fully offline without it) */
+  .cloud-status{ font-size:0.74rem; color:var(--text-dim); align-self:center; margin-right:auto; }
+  .id-choice-btn{ text-align:left; padding:14px; width:100%; }
+  .id-choice-btn .sub-desc{ font-size:0.78rem; color:var(--text-dim); margin-top:4px; font-weight:400; }
+  .id-skip-btn{ background:transparent; border:none; color:var(--text-dim); font-weight:400; text-decoration:underline; padding:6px; cursor:pointer; font-size:0.8rem; }
+  #fb-text{ width:100%; min-height:120px; background:#0f1119; border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:0.88rem; padding:10px; resize:vertical; box-sizing:border-box; }
+  .fb-type-btn.selected{ border-color:var(--accent); background:#1c2338; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>Bloodline</h1>
+    <p>A multi-era, multi-generational life sim — prototype build</p>
+  </header>
+  <div id="screen-setup" class="card"></div>
+  <div id="screen-game" class="card" style="display:none;"></div>
+  <div id="screen-death" class="card" style="display:none;"></div>
+  <div id="tree-overlay" class="tree-overlay"></div>
+  <div id="story-overlay" class="story-overlay"></div>
+  <div id="cloud-overlay" class="tree-overlay"></div>
+  <div id="feedback-overlay" class="tree-overlay"></div>
+  <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
+  <footer>Prototype v0.5.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+</div>
+
+<script>
+/* =========================================================
+   BLOODLINE — prototype life sim engine (v0.2: choice-driven)
+   ========================================================= */
+
+const ERAS = [
+  { id:'wildwest', name:'The Wild West', years:'1872 – 1899', desc:'Frontier towns, railroads, and hard living.', moneyRange:[5,60] },
+  { id:'twenties', name:'The Roaring Twenties', years:'1920 – 1935', desc:'Jazz, bootleggers, and the crash looming ahead.', moneyRange:[10,150] },
+  { id:'postwar', name:'The Postwar Boom', years:'1950 – 1968', desc:'Suburbs, factory jobs, and the American dream.', moneyRange:[50,400] },
+  { id:'modern', name:'Modern Day', years:'2005 – 2026', desc:'Smartphones, gig work, and student debt.', moneyRange:[100,1200] },
+  { id:'future', name:'The Near Future', years:'2061 – 2090', desc:'AI coworkers, climate strain, and orbital tourism.', moneyRange:[200,3000] },
+];
+
+const FIRST_NAMES = ['Alex','Jordan','Sam','Riley','Casey','Morgan','Taylor','Jamie','Quinn','Avery','Eli','Nora','Marcus','Della','Otis','June','Frank','Ada','Wyatt','Nova','Grace','Leo','Ruby','Hank'];
+const LAST_NAMES = ['Hartley','Voss','Calloway','Reyes','Whitfield','Nakamura','Okafor','Brennan','Solis','Marsh','Kowalski','Delgado','Finch','Ostrander','Callahan'];
+const PET_NAMES = ['Rex','Biscuit','Shadow','Duke','Molly','Pepper','Scout','Daisy','Buddy','Ziggy','Copper','Nova-9'];
+const PET_SPECIES = {
+  wildwest:['dog','barn cat','horse'], twenties:['dog','cat'], postwar:['dog','cat','goldfish'],
+  modern:['dog','cat','hamster'], future:['dog','cat','companion-bot'],
+};
+const TEACHER_NAMES = ['Mr. Aldridge','Mrs. Petrova','Ms. Kwan','Mr. Osei','Mrs. Lindqvist','Mr. Alvarez'];
+const BOSS_NAMES = ['Ms. Renner','Mr. Douglas','Mrs. Ibarra','Mr. Choi','Ms. Fontaine'];
+
+const JOB_TITLES = {
+  wildwest:['Ranch Hand','Blacksmith','Shopkeeper','Prospector','Telegraph Operator'],
+  twenties:['Factory Worker','Speakeasy Manager','Typist','Salesman','Railway Clerk'],
+  postwar:['Factory Foreman','Schoolteacher','Office Clerk','Salesman','Engineer'],
+  modern:['Software Tester','Barista','Marketing Coordinator','Nurse','Delivery Driver'],
+  future:['AI Systems Overseer','Orbital Logistics Tech','Climate Engineer','Bio-Fabricator','Remote Data Analyst'],
+};
+const TEEN_JOB_TITLES = {
+  wildwest:['Stable Hand','Errand Runner','General Store Sweeper'],
+  twenties:['Newsboy/Newsgirl','Soda Fountain Clerk','Delivery Runner'],
+  postwar:['Soda Jerk','Grocery Bagger','Lawn Mowing Route'],
+  modern:['Fast Food Crew','Retail Associate','Lawn Mowing Gig'],
+  future:['Drone Delivery Pilot','App-Based Micro-Tasker','Vertical Farm Hand'],
+};
+// A higher-paying career track that opens up at adulthood for characters who
+// built up real smarts as a kid/teen — the concrete version of "smarts should
+// gate a widening range of opportunities" rather than just being a stat that
+// climbs in isolation.
+const ELITE_JOB_TITLES = {
+  wildwest:['Assayer','Attorney','Newspaper Editor','Land Surveyor'],
+  twenties:['Attorney','Physician','Bank Manager','Investigative Journalist'],
+  postwar:['Civil Engineer','Physician','Attorney','University Instructor'],
+  modern:['Software Engineer','Physician','Attorney','Data Scientist'],
+  future:['Quantum Systems Architect','Orbital Physician','AI Ethicist','Terraform Engineer'],
+};
+const ELITE_JOB_SMARTS_THRESHOLD = 75;
+
+const SHOP_ITEMS = {
+  wildwest:[
+    {id:'toy_horse', label:'Wooden toy horse', cost:5, minAge:2, effect:{happiness:6}},
+    {id:'pocket_knife', label:'Pocket knife', cost:8, minAge:8, effect:{happiness:4, looks:2}},
+    {id:'good_boots', label:'Good pair of boots', cost:18, minAge:10, effect:{looks:5, health:3}},
+    {id:'own_horse', label:'A horse of their own', cost:120, minAge:14, effect:{happiness:15, looks:5}},
+    {id:'homestead', label:'A small homestead plot', cost:400, minAge:18, effect:{happiness:22}},
+  ],
+  twenties:[
+    {id:'toy_train', label:'Tin toy train', cost:4, minAge:2, effect:{happiness:6}},
+    {id:'radio_set', label:'Home radio set', cost:25, minAge:8, effect:{happiness:8, smarts:2}},
+    {id:'dance_shoes', label:'Sharp dance shoes', cost:15, minAge:13, effect:{looks:6, happiness:4}},
+    {id:'motorcar', label:'A secondhand motorcar', cost:350, minAge:17, effect:{happiness:16, looks:6}},
+    {id:'apartment', label:'Lease a city apartment', cost:500, minAge:18, effect:{happiness:20}},
+  ],
+  postwar:[
+    {id:'bicycle', label:'New bicycle', cost:20, minAge:6, effect:{happiness:9, health:3}},
+    {id:'record_player', label:'Record player', cost:40, minAge:10, effect:{happiness:7, looks:2}},
+    {id:'television', label:'Television set', cost:150, minAge:13, effect:{happiness:10}},
+    {id:'used_car', label:'Used car', cost:900, minAge:17, effect:{happiness:16, looks:5}},
+    {id:'house_downpayment', label:'House down payment', cost:2500, minAge:21, effect:{happiness:25}},
+  ],
+  modern:[
+    {id:'game_console', label:'Video game console', cost:60, minAge:6, effect:{happiness:10}},
+    {id:'smartphone', label:'Smartphone', cost:200, minAge:12, effect:{happiness:9, looks:2}},
+    {id:'gaming_pc', label:'Gaming PC', cost:900, minAge:15, effect:{happiness:14, smarts:2}},
+    {id:'used_car_modern', label:'Used car', cost:4500, minAge:17, effect:{happiness:16, looks:4}},
+    {id:'apartment_deposit', label:'Apartment security deposit', cost:2000, minAge:20, effect:{happiness:22}},
+  ],
+  future:[
+    {id:'holo_toy', label:'Holo-projector toy', cost:15, minAge:2, effect:{happiness:8}},
+    {id:'neural_headset', label:'Neural study headset', cost:250, minAge:10, effect:{smarts:6, happiness:4}},
+    {id:'grav_board', label:'Gravity board', cost:600, minAge:14, effect:{happiness:14, looks:4}},
+    {id:'hovercycle', label:'Personal hovercycle', cost:5000, minAge:17, effect:{happiness:18, looks:6}},
+    {id:'orbital_trip', label:'Weekend orbital trip', cost:9000, minAge:20, effect:{happiness:28}},
+  ],
+};
+
+/* ---------- utils ---------- */
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function pick(arr){ return arr[randInt(0,arr.length-1)]; }
+function clamp(v){ return Math.max(0, Math.min(100, v)); }
+function firstName(full){ return full.split(' ')[0]; }
+function ageBracket(age){
+  if(age<=1) return 'infant';
+  if(age<=4) return 'toddler';
+  if(age<=12) return 'kid';
+  if(age<=17) return 'teen';
+  if(age<=64) return 'adult';
+  return 'senior';
+}
+function rollRange(r){ return Array.isArray(r) ? randInt(r[0],r[1]) : (r||0); }
+
+/* Anti-repeat text picker: cycles through variants before allowing a repeat */
+function pickText(c, key, variants){
+  if(!c._usedText) c._usedText = {};
+  if(!c._usedText[key]) c._usedText[key] = [];
+  let used = c._usedText[key];
+  if(used.length >= variants.length) used = c._usedText[key] = [];
+  let idx;
+  do { idx = randInt(0, variants.length-1); } while(used.includes(idx) && used.length < variants.length);
+  used.push(idx);
+  return variants[idx];
+}
+
+// Teacher/boss names are seeded "Mr./Mrs./Ms. Surname" — splitting on the first
+// space like a normal first name would truncate them to just the title.
+function displayName(r){
+  return (r && (r.role === 'teacher' || r.role === 'boss')) ? r.name : firstName(r ? r.name : '');
+}
+function fill(template, c, target){
+  return template.replace(/{name}/g, firstName(c.name)).replace(/{target}/g, target ? displayName(target) : '');
+}
+
+/* ---------- relationships ---------- */
+let relCounter = 0;
+function addRelationship(c, role, name, extra){
+  const rel = Object.assign({ id:'r'+(relCounter++), role, name, closeness: randInt(50,72), active:true }, extra||{});
+  c.relationships.push(rel);
+  return rel;
+}
+function relsByRole(c, role){ return c.relationships.filter(r=>r.active && r.role===role); }
+function relByRole(c, role){ return relsByRole(c, role)[0]; }
+
+function makeFamily(eraId, surname){
+  const rels = [];
+  rels.push({role:'mother', name: pick(FIRST_NAMES)+' '+surname});
+  rels.push({role:'father', name: pick(FIRST_NAMES)+' '+surname});
+  const numSiblings = randInt(0,2);
+  for(let i=0;i<numSiblings;i++) rels.push({role:'sibling', name: pick(FIRST_NAMES)+' '+surname});
+  const species = pick(PET_SPECIES[eraId]);
+  rels.push({role:'pet', name: pick(PET_NAMES), species});
+  return { rels };
+}
+
+// Family members and future generations should share the player's actual
+// last name when they gave one, rather than a disconnected random surname.
+function deriveSurname(name){
+  const parts = String(name).trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : pick(LAST_NAMES);
+}
+
+/* ---------- action effect definitions ---------- */
+/* Each def: {id,label,category,minAge,maxAge,cost,texts:[..],effect:{stat:[min,max],...}, special, requires} */
+
+const ROLE_ACTIONS = {
+  mother:[
+    {id:'m_time', label:'Spend time with {target}', category:'Family',
+     texts:["{name} and {target} baked something together.","{name} curled up and talked with {target} for hours.","{name} and {target} took a long walk and talked.","{target} taught {name} an old family recipe.","{name} and {target} just sat together, no words needed."],
+     effect:{closeness:[8,14], happiness:[3,6]}},
+    {id:'m_advice', label:'Ask {target} for advice', category:'Family', minAge:5,
+     texts:["{target} gave {name} some hard-won wisdom.","{name} vented to {target} and felt lighter.","{target} helped {name} think through a tough decision."],
+     effect:{closeness:[4,8], smarts:[3,6]}},
+    {id:'m_help', label:'Help {target} around the house', category:'Family', minAge:5,
+     texts:["{name} helped {target} with chores and earned a little cash.","{target} was grateful for the extra hands around the house."],
+     effect:{closeness:[5,9], money:[3,10]}},
+    {id:'m_gift', label:'Buy {target} a gift', category:'Family', cost:15,
+     texts:["{target} was genuinely touched.","{name} picked out something {target} had wanted for a while."],
+     effect:{closeness:[7,12], happiness:[2,4]}},
+  ],
+  father:[
+    {id:'f_time', label:'Spend time with {target}', category:'Family',
+     texts:["{name} and {target} tossed a ball around in the yard.","{target} taught {name} how to fix something.","{name} and {target} watched the sunset from the porch.","{target} told {name} stories from way back when.","{name} and {target} worked on a project together."],
+     effect:{closeness:[8,14], happiness:[3,6]}},
+    {id:'f_advice', label:'Ask {target} for advice', category:'Family', minAge:5,
+     texts:["{target} gave {name} some straight talk.","{name} and {target} had a heart-to-heart."],
+     effect:{closeness:[4,8], smarts:[3,6]}},
+    {id:'f_help', label:'Help {target} around the house', category:'Family', minAge:5,
+     texts:["{name} pitched in on a project and earned a few bucks.","{target} paid {name} for a job well done."],
+     effect:{closeness:[5,9], money:[3,10]}},
+    {id:'f_gift', label:'Buy {target} a gift', category:'Family', cost:15,
+     texts:["{target} lit up when they opened it.","{name} nailed the gift this year."],
+     effect:{closeness:[7,12], happiness:[2,4]}},
+  ],
+  sibling:[
+    {id:'sib_play', label:'Play with {target}', category:'Family',
+     texts:["{name} and {target} invented a new game.","{name} and {target} got into some harmless mischief.","{target} and {name} teamed up against the world, as usual.","{name} and {target} argued, then made up within the hour."],
+     effect:{closeness:[7,13], happiness:[2,6]}},
+    {id:'sib_team', label:'Team up with {target} on something', category:'Family', minAge:6,
+     texts:["{name} and {target} pulled off a genius prank together.","{name} and {target} covered for each other."],
+     effect:{closeness:[6,10], happiness:[3,6]}},
+    {id:'sib_gift', label:'Give {target} a gift', category:'Family', cost:10,
+     texts:["{target} wasn't expecting that at all.","{name} and {target} are getting along great lately."],
+     effect:{closeness:[6,11], happiness:[2,4]}},
+  ],
+  pet:[
+    {id:'pet_play', label:'Play with {target}', category:'Family',
+     texts:["{name} and {target} chased each other around the yard.","{target} curled up right in {name}'s lap.","{name} taught {target} a new trick.","{target} greeted {name} like it had been years, not hours."],
+     effect:{closeness:[8,14], happiness:[4,7]}},
+    {id:'pet_walk', label:'Take {target} out', category:'Family', minAge:5,
+     texts:["{name} and {target} explored the neighborhood together.","{target} dragged {name} toward every interesting smell."],
+     effect:{closeness:[5,9], happiness:[3,5], health:[1,3]}},
+  ],
+  bestfriend:[
+    {id:'bf_hang', label:'Hang out with {target}', category:'Social',
+     texts:["{name} and {target} laughed until it hurt.","{name} and {target} got up to the usual trouble.","{target} always knew how to cheer {name} up.","{name} and {target} spent the whole time talking about nothing and everything."],
+     effect:{closeness:[8,13], happiness:[5,8]}},
+    {id:'bf_secret', label:'Share a secret with {target}', category:'Social',
+     texts:["{name} trusted {target} with something big.","{target} kept {name}'s secret safe."],
+     effect:{closeness:[6,11], happiness:[2,4]}},
+    {id:'bf_gift', label:'Get {target} a gift', category:'Social', cost:12,
+     texts:["{target} loved it.","{name} knows {target} better than anyone."],
+     effect:{closeness:[7,12], happiness:[2,4]}},
+  ],
+  friend:[
+    {id:'fr_hang', label:'Hang out with {target}', category:'Social',
+     texts:["{name} and {target} grabbed some time together.","{name} and {target} caught up on everything going on."],
+     effect:{closeness:[6,11], happiness:[3,6]}},
+    {id:'fr_gift', label:'Get {target} a small gift', category:'Social', cost:10,
+     texts:["{target} appreciated the thought.","It was a nice surprise for {target}."],
+     effect:{closeness:[5,10], happiness:[2,3]}},
+  ],
+  partner:[
+    {id:'pt_date', label:'Go on a date with {target}', category:'Social', cost:15,
+     texts:["{name} and {target} had a night to remember.","{target} planned a sweet little surprise for {name}.","{name} and {target} talked for hours over dinner."],
+     effect:{closeness:[9,15], happiness:[6,10]}},
+    {id:'pt_talk', label:'Have a deep conversation with {target}', category:'Social',
+     texts:["{name} and {target} got real about where things were headed.","{name} and {target} worked through something important."],
+     effect:{closeness:[7,12], happiness:[3,6]}},
+    {id:'pt_gift', label:'Surprise {target} with a gift', category:'Social', cost:30,
+     texts:["{target} was completely caught off guard, in a good way.","{name} nailed it — {target} loved the gift."],
+     effect:{closeness:[10,16], happiness:[4,7]}},
+    {id:'pt_propose', label:'Propose to {target}', category:'Social', cost:50, minAge:18, special:'marry',
+     texts:[], effect:{}},
+  ],
+  teacher:[
+    {id:'tc_help', label:'Ask {target} for extra help', category:'School', minAge:5, maxAge:18,
+     texts:["{target} stayed after class to help {name} catch up.","{name} finally understood, thanks to {target}."],
+     effect:{closeness:[5,9], smarts:[5,9]}},
+    {id:'tc_good', label:"Get on {target}'s good side", category:'School', minAge:5, maxAge:18,
+     texts:["{name} volunteered for extra credit — {target} noticed.","{target} started giving {name} the benefit of the doubt."],
+     effect:{closeness:[6,10], happiness:[2,4]}},
+  ],
+  boss:[
+    {id:'bs_impress', label:'Impress {target}', category:'Work', minAge:16,
+     texts:["{target} noticed {name} going above and beyond.","{name} nailed a big task in front of {target}."],
+     effect:{closeness:[6,10], money:[5,15]}},
+  ],
+  coworker:[
+    {id:'cw_lunch', label:'Grab lunch with {target}', category:'Work', minAge:16, cost:8,
+     texts:["{name} and {target} vented about work over lunch.","{name} and {target} actually became real friends."],
+     effect:{closeness:[6,10], happiness:[3,5]}},
+  ],
+};
+
+const BRACKET_ACTIONS = {
+  infant:[
+    {id:'tummy_time', label:'Tummy time', category:'Play',
+     texts:["{name} practiced holding their head up, very seriously.","{name} was not thrilled about tummy time but tolerated it."],
+     effect:{health:[2,4], happiness:[-1,2]}},
+    {id:'mobile_watch', label:'Watch the mobile spin', category:'Play',
+     texts:["{name} stared at the spinning mobile like it held the secrets of the universe.","{name} reached for the mobile and missed, every single time, delightedly."],
+     effect:{happiness:[3,5], smarts:[1,2]}},
+    {id:'bath_splash', label:'Splash in the bath', category:'Play',
+     texts:["{name} discovered splashing and refused to stop.","Bath time turned into a full soaking of the bathroom floor."],
+     effect:{happiness:[3,6], health:[1,2]}},
+    {id:'coo_babble', label:'Babble back and forth', category:'Play',
+     texts:["{name} and a very patient adult had a whole \"conversation\" in babbles.","{name} tried out a new sound today and seemed proud of it."],
+     effect:{happiness:[2,4], smarts:[1,3]}},
+  ],
+  toddler:[
+    {id:'explore_yard', label:'Explore the backyard', category:'Play',
+     texts:["{name} found a dozen fascinating rocks.","{name} chased butterflies for a solid hour.","{name} got covered head to toe in dirt, happily."],
+     effect:{happiness:[4,8], health:[1,3]}},
+    {id:'stack_blocks', label:'Stack blocks / build a tower', category:'Play',
+     texts:["{name} built the tallest tower yet, then knocked it down giggling.","{name} was very serious about block-stacking today."],
+     effect:{smarts:[2,5], happiness:[2,5], imagination:[2,4]}},
+    {id:'watch_cartoons', label:'Watch cartoons', category:'Play',
+     texts:["{name} watched the same episode three times and loved it every time.","{name} sang along to the theme song."],
+     effect:{happiness:[3,6]}},
+    {id:'splash_puddle', label:'Splash in a puddle', category:'Play',
+     texts:["{name} found the biggest puddle in the yard.","{name} soaked their socks completely."],
+     effect:{happiness:[5,8]}},
+    {id:'crawl_walk', label:'Crawl and toddle around the house', category:'Play',
+     texts:["{name} made it all the way across the living room.","{name} got into the kitchen cabinets again."],
+     effect:{happiness:[3,6], health:[1,2]}},
+    {id:'story_time', label:'Listen to a story', category:'Play',
+     texts:["{name} asked for the same book again.","{name} pointed at every picture and babbled about it."],
+     effect:{smarts:[3,6], happiness:[2,4], imagination:[3,6]}},
+  ],
+  kid:[
+    {id:'study', label:'Study hard', category:'School',
+     texts:["{name} actually enjoyed the homework tonight.","{name} aced a pop quiz.","{name} stayed focused through a tough assignment."],
+     effect:{smarts:[6,11]}},
+    {id:'join_sport', label:'Join a sports team', category:'Activities',
+     texts:["{name} scored a goal for the first time.","{name} is getting stronger every practice.","{name} rode the bench but cheered loudly anyway."],
+     effect:{health:[5,9], happiness:[4,7]}},
+    {id:'join_arts', label:'Join an art or music class', category:'Activities',
+     texts:["{name} painted something they're actually proud of.","{name} learned three new chords."],
+     effect:{happiness:[5,9], smarts:[2,4], imagination:[4,8]}},
+    {id:'martial_arts', label:'Take a martial arts class', category:'Activities',
+     texts:["{name} earned a new belt.","{name} learned to fall without getting hurt."],
+     effect:{health:[5,9], happiness:[3,5]}},
+    {id:'chores', label:'Do chores for allowance', category:'Money',
+     texts:["{name} did every chore on the list.","{name} negotiated a slightly better allowance."],
+     effect:{money:[5,12], happiness:[-1,2]}},
+    {id:'lemonade', label:'Run a lemonade stand', category:'Money', minAge:7,
+     texts:["Business was good — {name} sold out early.","{name} barely broke even but had fun."],
+     effect:{money:[4,18], happiness:[2,5]}},
+    {id:'read_book', label:'Read a book', category:'Activities',
+     texts:["{name} finished a whole book in one sitting.","{name} got completely lost in a story."],
+     effect:{smarts:[4,8], happiness:[1,3], imagination:[2,5]}},
+    {id:'build_fort', label:'Build a blanket fort', category:'Play',
+     texts:["{name} built the greatest fort the living room has ever seen.","{name} defended the fort valiantly."],
+     effect:{happiness:[5,9], imagination:[3,7]}},
+    {id:'make_friend', label:'Make a new friend', category:'Social', special:'make_friend',
+     texts:["{name} made a new friend at recess."],
+     effect:{happiness:[4,7]}},
+  ],
+  teen:[
+    {id:'study_hard', label:'Study hard', category:'School',
+     texts:["{name} pulled a great grade on a big test.","{name} is actually getting ahead in class."],
+     effect:{smarts:[6,11]}},
+    {id:'varsity', label:'Join a varsity sport', category:'Activities',
+     texts:["{name} made varsity.","{name} had a breakout game this season."],
+     effect:{health:[6,10], happiness:[4,7]}},
+    {id:'band_arts', label:'Join band or the arts program', category:'Activities',
+     texts:["{name} landed a solo.","{name} got into the school showcase."],
+     effect:{happiness:[5,9], smarts:[2,4], imagination:[3,6]}},
+    {id:'martial_arts_t', label:'Train in martial arts', category:'Activities',
+     texts:["{name} tested for a new belt.","{name} is getting seriously disciplined about training."],
+     effect:{health:[6,10], happiness:[3,5]}},
+    {id:'workout', label:'Hit the gym', category:'Health',
+     texts:["{name} is noticeably stronger this year.","{name} actually stuck with a routine."],
+     effect:{health:[5,9], looks:[3,6]}},
+    {id:'throw_party', label:'Throw a party', category:'Social', cost:20,
+     texts:["The party was legendary.","Word got around — {name}'s parties are the ones to go to."],
+     effect:{happiness:[8,13], closeness:0}},
+    {id:'volunteer_t', label:'Volunteer locally', category:'Activities',
+     texts:["{name} put in real hours helping out.","{name} felt good about giving back."],
+     effect:{happiness:[4,7], smarts:[2,4]}},
+    {id:'part_time_job', label:'Get a part-time job', category:'Money', minAge:14, special:'teen_job',
+     texts:["{name} landed a part-time gig."],
+     effect:{}},
+    {id:'side_hustle_t', label:'Start a small side hustle', category:'Money',
+     texts:["{name}'s little business actually turned a profit.","{name} hustled hard this year."],
+     effect:{money:[15,45], happiness:[1,3]}},
+    {id:'find_partner', label:'Ask someone out', category:'Social', special:'find_partner',
+     texts:["{name} worked up the nerve and asked someone out."],
+     effect:{happiness:[5,9]}},
+    {id:'academic_competition', label:'Enter an academic competition', category:'School', minSmarts:70,
+     texts:["{name} placed at the regional academic competition.","{name}'s hard work paid off on competition day."],
+     effect:{smarts:[4,8], happiness:[4,7], money:[10,30]}},
+    {id:'skip_class', label:'Skip class', category:'Risk',
+     texts:["{name} got away with it.","{name} got caught and it was not fun."],
+     effect:{happiness:[3,7], smarts:[-6,-2]}},
+  ],
+  adult:[
+    {id:'work_overtime', label:'Work overtime', category:'Work',
+     texts:["The extra hours paid off, literally.","{name} came home exhausted but a little richer."],
+     effect:{money:[30,80], health:[-3,-1]}, requiresJob:true},
+    {id:'ask_raise', label:'Ask for a raise', category:'Work',
+     texts:["{name} made the case and got a bump in pay.","It didn't go anywhere this time, but {name} made an impression."],
+     effect:{money:[20,60], happiness:[-2,5]}, requiresJob:true},
+    {id:'side_hustle_a', label:'Pick up a side hustle', category:'Money',
+     texts:["The side gig brought in solid extra cash.","{name} is getting good at balancing two things at once."],
+     effect:{money:[25,70], health:[-2,0]}},
+    {id:'hit_gym_a', label:'Hit the gym', category:'Health',
+     texts:["{name} is in the best shape in years.","{name} actually kept the New Year's resolution this time."],
+     effect:{health:[5,9], looks:[2,5]}},
+    {id:'take_class', label:'Take a class', category:'Growth', cost:40,
+     texts:["{name} picked up a genuinely useful new skill.","The class was tough but worth it."],
+     effect:{smarts:[6,10]}},
+    {id:'volunteer_a', label:'Volunteer', category:'Growth',
+     texts:["{name} put in real time helping the community.","It felt good to give back this year."],
+     effect:{happiness:[5,8], imagination:[1,3]}},
+    {id:'travel', label:'Take a weekend trip', category:'Growth', cost:60,
+     texts:["{name} needed that trip more than they realized.","A change of scenery did wonders."],
+     effect:{happiness:[9,14], imagination:[2,5]}},
+    {id:'creative_project', label:'Pursue a creative passion project', category:'Growth', minImagination:60,
+     texts:["{name}'s imagination finally found a real outlet — and it actually earned some money.","{name} poured themselves into a passion project that turned out better than expected."],
+     effect:{money:[40,110], happiness:[6,10]}},
+    {id:'deposit_savings', label:'Put money into savings', category:'Money', special:'deposit_savings', texts:[], effect:{}},
+    {id:'withdraw_savings', label:'Withdraw from savings', category:'Money', special:'withdraw_savings', texts:[], effect:{}},
+  ],
+  senior:[
+    {id:'garden', label:'Take up gardening', category:'Hobbies',
+     texts:["{name}'s garden is the pride of the block.","{name} lost track of time pulling weeds, happily."],
+     effect:{happiness:[5,8], health:[2,4], imagination:[1,3]}},
+    {id:'fish', label:'Go fishing', category:'Hobbies',
+     texts:["{name} caught the big one this time.","{name} spent a quiet morning by the water."],
+     effect:{happiness:[5,9]}},
+    {id:'travel_s', label:'Take a trip', category:'Hobbies', cost:80,
+     texts:["{name} finally saw the place they'd always talked about.","It was everything {name} hoped for."],
+     effect:{happiness:[10,15]}},
+    {id:'volunteer_s', label:'Volunteer at the community center', category:'Hobbies',
+     texts:["{name} is a fixture down at the community center now.","Everyone there knows {name} by name."],
+     effect:{happiness:[6,9]}},
+    {id:'memoirs', label:'Write your memoirs', category:'Hobbies', minImagination:60,
+     texts:["{name}'s memoirs turned out to be a genuinely great read — family fought over who got the first copy.","{name} finally got the stories down on paper, and it felt like putting a whole life in order."],
+     effect:{happiness:[8,14], money:[10,30]}},
+    {id:'rest', label:'Rest and relax', category:'Health',
+     texts:["{name} took it easy and felt better for it.","A slow, quiet year — exactly what {name} needed."],
+     effect:{health:[4,7], happiness:[2,4]}},
+    {id:'deposit_savings', label:'Put money into savings', category:'Money', special:'deposit_savings', texts:[], effect:{}},
+    {id:'withdraw_savings', label:'Withdraw from savings', category:'Money', special:'withdraw_savings', texts:[], effect:{}},
+  ],
+};
+
+// small era-flavored extra activities layered onto kid/teen/adult brackets
+const ERA_BRACKET_ACTIONS = {
+  wildwest:{
+    teen:[{id:'ride_shoot', label:'Practice riding and shooting', category:'Activities', texts:["{name} is a natural on horseback.","{name}'s aim is getting sharper."], effect:{health:[4,7], looks:[2,4]}}],
+    adult:[{id:'invest_claim', label:'Invest in a mining claim', category:'Money', cost:60, special:'invest', texts:[], effect:{}}],
+  },
+  twenties:{
+    teen:[{id:'speakeasy', label:'Sneak into a speakeasy', category:'Risk', texts:["{name} danced 'til dawn and got away with it.","{name} had a wild night, no regrets."], effect:{happiness:[7,11], health:[-2,0]}}],
+    adult:[{id:'invest_stock', label:'Buy stock on margin', category:'Money', cost:80, special:'invest', texts:[], effect:{}}],
+  },
+  postwar:{
+    teen:[{id:'driving', label:'Take driving lessons', category:'Activities', cost:10, texts:["{name} nailed parallel parking.","{name} is finally road-ready."], effect:{happiness:[4,7], smarts:[1,3]}}],
+    adult:[{id:'invest_bonds', label:'Buy savings bonds', category:'Money', cost:50, special:'invest', texts:[], effect:{}}],
+  },
+  modern:{
+    teen:[{id:'content', label:'Post content online', category:'Social', texts:["{name}'s post did surprisingly well.","{name} spent way too long refreshing for likes."], effect:{happiness:[3,7], smarts:[-2,1]}}],
+    adult:[{id:'invest_index', label:'Invest in an index fund', category:'Money', cost:100, special:'invest', texts:[], effect:{}}],
+  },
+  future:{
+    teen:[{id:'neuro_study', label:'Use a neural-interface tutor', category:'School', cost:25, texts:["{name} absorbed a semester's worth in a weekend.","The headset gave {name} a mild headache but it worked."], effect:{smarts:[8,13]}}],
+    adult:[{id:'invest_orbital', label:'Invest in an orbital startup', category:'Money', cost:150, special:'invest', texts:[], effect:{}}],
+  },
+};
+
+/* ---------- world events (uncontrollable, expanded pools) ---------- */
+function worldEventPool(eraId, bracket){
+  const generic = {
+    infant:[
+      {t:"{name} slept through the night for the first time, and the whole household throws a small party over it.", e:{happiness:3}},
+      {t:"{name} had a rough teething week that nobody in the house will forget.", e:{happiness:-4, health:-2}},
+      {t:"{name} discovered their own feet and found them deeply, endlessly fascinating.", e:{happiness:4}},
+      {t:"{name} caught a cold going around the house.", e:{health:-5}},
+      {t:"{name} babbled something that sounded suspiciously like a real word, and everyone lost their minds about it.", e:{happiness:3, smarts:1}},
+      {t:"{name} decided 3am was an excellent time to be wide awake.", e:{happiness:-2, health:-2}},
+    ], toddler:[
+      {t:"{name} declared war on the dog's water bowl and lost.", e:{health:-6}},
+      {t:"{name} decided the dog's water bowl was the single most fascinating object in the house.", e:{happiness:3}},
+      {t:"{name} had a full meltdown in the cereal aisle that the whole store will remember.", e:{happiness:-4}},
+      {t:"{name} figured out how to open the cabinet everyone swore was toddler-proof.", e:{happiness:5}},
+      {t:"{name} refused to nap on principle and regretted it deeply by dinnertime.", e:{happiness:-3}},
+      {t:"{name} shared a toy without being asked, shocking every adult in the room.", e:{happiness:4}},
+    ],
+    kid:[
+      {t:"{name} made a new friend over a shared hatred of the cafeteria mystery meat.", e:{happiness:8}, special:'make_friend'},
+      {t:"An older kid gave {name} a hard time at recess, and {name} is still thinking of the comeback they should've said.", e:{happiness:-7, looks:-1}},
+      {t:"{name} won the spelling bee on a word even the judge could barely pronounce.", e:{smarts:6, happiness:4}},
+      {t:"{name} fell out of a tree attempting a stunt that seemed like a great idea five seconds earlier.", e:{health:-10, happiness:-3}},
+      {t:"The flu went around school and {name} did not escape it.", e:{health:-8}},
+      {t:"{name} got picked first for kickball for the first time in recorded history.", e:{happiness:6}},
+      {t:"{name} lost a tooth mid-sentence during a class presentation.", e:{happiness:-2}},
+      {t:"{name} turned in a project so good the teacher read it out loud to the whole class.", e:{smarts:5, happiness:4}},
+      {t:"{name} got sent to the principal's office for something that, in hindsight, was pretty funny.", e:{happiness:-3, smarts:1}},
+      {t:"{name} won the class geography bee by knowing one obscure capital city.", e:{smarts:5, happiness:3}},
+    ],
+    teen:[
+      {t:"{name} got their heart broken for the first time, and it felt exactly as dramatic as every song promised.", e:{happiness:-10}},
+      {t:"{name} aced an exam they were absolutely certain they'd bombed.", e:{smarts:7, happiness:5}},
+      {t:"The universe chose picture day, of all days, to give {name} the breakout of the century.", e:{looks:-4, happiness:-3}},
+      {t:"{name} shot up several inches seemingly overnight and can no longer find pants that fit.", e:{health:3, looks:2}},
+      {t:"{name} was voted class clown, an honor their parents insist is 'not a real award.'", e:{happiness:6}},
+      {t:"{name} failed a driving test so badly the instructor asked to walk home.", e:{happiness:-4}},
+      {t:"{name} tapped the car ahead at a stoplight — cosmetic damage, expensive lesson.", e:{money:-20, happiness:-3}},
+      {t:"{name}'s friend group imploded over something nobody can even remember the cause of anymore.", e:{happiness:-6}},
+      {t:"{name} got a part in the school play and completely blanked on opening night.", e:{happiness:-4, looks:1}},
+      {t:"{name} pulled an all-nighter for a test and somehow, miraculously, it worked.", e:{smarts:6, happiness:-2}},
+    ],
+    adult:[
+      {t:"A total stranger gave {name} a compliment that somehow carried them through the entire week.", e:{happiness:5, looks:1}},
+      {t:"{name} caught a cold that lingered just long enough to become genuinely annoying.", e:{health:-8}},
+      {t:"{name} ran into an old friend completely out of the blue, and it was like no time had passed.", e:{happiness:7}},
+      {t:"{name} came back to a parking ticket that felt personal.", e:{money:-25, happiness:-2}},
+      {t:"The car picked the worst possible week to start making an ominous noise.", e:{money:-60, happiness:-3}},
+      {t:"{name} got singled out at work for genuinely good reasons, for once.", e:{happiness:6}},
+      {t:"A stretch of terrible sleep finally caught up with {name}.", e:{health:-5, happiness:-3}},
+      {t:"{name} found forgotten cash in an old coat pocket, which absolutely counts as free money.", e:{money:15, happiness:2}},
+      {t:"{name} tried a new recipe that was, against all odds, actually great.", e:{happiness:4}},
+      {t:"{name} got roped into a home renovation project that took three times longer than planned.", e:{money:-35, happiness:-4}},
+    ],
+    senior:[
+      {t:"{name} held court telling the same stories the grandkids pretend they haven't heard before.", e:{happiness:8}},
+      {t:"{name}'s knees filed a formal complaint this year.", e:{health:-9}},
+      {t:"An unannounced visit from family made {name}'s whole month.", e:{happiness:9}},
+      {t:"A routine checkup gave everyone a scare before turning out completely fine.", e:{health:-5, happiness:-3}},
+      {t:"{name} finally beat their own record at the crossword, and will be mentioning it for weeks.", e:{happiness:5, smarts:2}},
+      {t:"{name} won the neighborhood's unofficial pie contest and will absolutely not let anyone forget it.", e:{happiness:7}},
+      {t:"{name} found a stack of old savings bonds tucked in a drawer, forgotten for decades.", e:{money:40, happiness:4}},
+      {t:"An old friend from way back called completely out of the blue, and they talked for hours.", e:{happiness:8}},
+      {t:"{name}'s hearing aid picked the single worst possible moment to start whistling.", e:{happiness:-3}},
+      {t:"{name} took a bad fall on the porch steps, nothing broken but it shook everyone up.", e:{health:-8, happiness:-3}},
+    ],
+  };
+  const flavor = {
+    wildwest:{ adult:[
+      {t:"{name} panned for gold for weeks and came away with mostly gravel.", e:{money:-15, happiness:-3}},
+      {t:"{name} made it through a brutal frontier winter by sheer stubbornness.", e:{health:-10, happiness:-4}},
+      {t:"{name} helped drive cattle all the way to the railhead and got paid well for the trouble.", e:{money:35, health:-5}},
+    ]},
+    twenties:{ adult:[
+      {t:"{name} put money in the market on a tip from a guy at the speakeasy — and it actually paid off.", e:{money:60, happiness:5}},
+      {t:"{name} lost a painful chunk of savings on a bet that seemed like a sure thing.", e:{money:-40, happiness:-6}},
+    ]},
+    postwar:{ adult:[
+      {t:"{name} put a down payment on a brand-new house out in the suburbs.", e:{money:-120, happiness:10}},
+      {t:"{name} brought home the family's first television and the whole street came over to see it.", e:{happiness:6, money:-20}},
+    ]},
+    modern:{ adult:[
+      {t:"{name} picked up a gig-economy side hustle just to make rent this month.", e:{money:45, health:-4}},
+      {t:"{name} finally knocked out a real chunk of student debt.", e:{money:-60, happiness:7}},
+      {t:"{name} doom-scrolled until 3am again and regretted every minute of it at 7am.", e:{happiness:-4, health:-3}},
+    ]},
+    future:{ adult:[
+      {t:"{name} landed a bonus after a genuinely great quarter.", e:{money:80}},
+      {t:"Another climate-driven heatwave rolled through and {name} felt every degree of it.", e:{health:-7, happiness:-3}},
+    ]},
+  };
+  const out = {infant:[...generic.infant], toddler:[...generic.toddler], kid:[...generic.kid], teen:[...generic.teen], adult:[...generic.adult], senior:[...generic.senior]};
+  const f = flavor[eraId] || {};
+  Object.keys(f).forEach(k=>{ out[k] = out[k].concat(f[k]); });
+  return out[bracket] || [];
+}
+
+// Rare, high-impact "legendary" events — memorable enough to talk about and to
+// surface first in the death-screen share highlights. Weighted very rare
+// (rolled independently, low probability) so they feel like a genuine story
+// beat rather than a regular occurrence.
+const LEGENDARY_EVENTS = {
+  wildwest:[
+    {t:"{name} struck gold in a played-out claim everyone else had given up on.", e:{money:250, happiness:15}, cls:'good'},
+    {t:"{name} survived a stagecoach robbery by playing dead in a ditch for two hours.", e:{happiness:-5, health:-8}, cls:'bad'},
+    {t:"{name} was elected town sheriff after the last one skipped town owing everybody money.", e:{happiness:12, money:40}, cls:'good'},
+    {t:"A range fire tore through and took {name}'s home with it.", e:{money:-150, happiness:-15}, cls:'bad'},
+  ],
+  twenties:[
+    {t:"{name} walked out of an underground casino with more cash than they walked in with, which never happens.", e:{money:200, happiness:12}, cls:'good'},
+    {t:"{name} got swept up in a Prohibition raid and talked their way out of it by sheer nerve.", e:{happiness:-6, money:-20}, cls:'bad'},
+    {t:"{name} put early money into a little company nobody had heard of, and it paid off enormously.", e:{money:300, happiness:14}, cls:'good'},
+    {t:"{name}'s bank collapsed overnight and took their savings down with it.", e:{money:-200, happiness:-16}, cls:'bad'},
+  ],
+  postwar:[
+    {t:"{name} won a brand-new refrigerator, a set of tires, and a station wagon in a radio call-in sweepstakes.", e:{money:150, happiness:14}, cls:'good'},
+    {t:"An invention {name} tinkered with in the garage actually got patented and sold to a manufacturer.", e:{money:280, happiness:15}, cls:'good'},
+    {t:"A tornado tore through the block and missed {name}'s house by a single row of trees.", e:{happiness:-8, health:-5}, cls:'bad'},
+    {t:"{name} got caught in the middle of a factory strike that turned uglier than anyone expected.", e:{happiness:-10, money:-30}, cls:'bad'},
+  ],
+  modern:[
+    {t:"A video {name} posted as a joke went viral overnight and turned into an actual brand deal.", e:{money:400, happiness:16}, cls:'good'},
+    {t:"{name} matched enough numbers to win a genuinely life-changing lottery prize.", e:{money:2000, happiness:25}, cls:'good'},
+    {t:"The startup {name} joined early got acquired, and the equity was suddenly real money.", e:{money:800, happiness:18}, cls:'good'},
+    {t:"{name}'s identity was stolen and it took months — and a drained account — to sort out.", e:{money:-300, happiness:-14}, cls:'bad'},
+  ],
+  future:[
+    {t:"A breakthrough {name} filed a patent on started generating real royalty checks.", e:{money:600, happiness:16}, cls:'good'},
+    {t:"{name} survived an orbital elevator malfunction that made the evening news planetwide.", e:{happiness:-6, health:-10}, cls:'bad'},
+    {t:"An AI trading algorithm {name} had been quietly running paid off spectacularly.", e:{money:900, happiness:14}, cls:'good'},
+    {t:"{name} had to evacuate ahead of a climate disaster and came home to find the house barely standing.", e:{money:-250, happiness:-16, health:-6}, cls:'bad'},
+  ],
+};
+const LEGENDARY_CHANCE = 0.02;
+const LEGENDARY_BRACKETS = ['kid','teen','adult','senior'];
+
+/* ---------- branching mini-storylines ---------- */
+// A small set of multi-step choice moments — not a full quest system, just
+// the odd "a stranger asks for help... do you?" beat that plays out over a
+// choice instead of one click. Rolled once per completed year, and when one
+// fires it stands in for that year's normal world event.
+const STORY_CHANCE = 0.06;
+const STORY_BRACKETS = ['kid','teen','adult','senior'];
+const MINI_STORIES = [
+  {
+    id:'stranger_help', brackets:['teen','adult','senior'],
+    prompt:"A stranger stops {name} and asks for help — their car's broken down and they're clearly in a hurry.",
+    choices:[
+      { label:'Help them out', effect:{happiness:[4,7]}, cls:'good', result:"{name} helped out, and the stranger was genuinely grateful — a nice little moment." },
+      { label:'Politely decline and move on', effect:{happiness:[-1,1]}, cls:'', result:"{name} decided not to get involved and kept walking." },
+    ],
+  },
+  {
+    id:'found_wallet', brackets:['kid','teen','adult','senior'],
+    prompt:"{name} finds a wallet stuffed with cash on the ground, no ID inside.",
+    choices:[
+      { label:'Turn it in', effect:{happiness:[3,6], smarts:[1,2]}, cls:'good', result:"{name} turned it in. Nothing ever came of it, but it felt like the right call." },
+      { label:'Keep the cash', effect:{money:[30,90], happiness:[-2,2]}, cls:'', result:"{name} kept the cash. Nobody ever found out." },
+    ],
+  },
+  {
+    id:'big_opportunity', brackets:['teen','adult'],
+    prompt:"{name} gets offered a big opportunity out of nowhere — but taking it means a real risk.",
+    choices:[
+      // imaginationScaled: a creative character is better at spotting the
+      // upside of a risky opportunity, so the payoff range shifts with the
+      // character's imagination stat instead of being flat for everyone —
+      // this is the mechanical payoff for the imagination stat mattering later.
+      { label:'Take the risk', effect:{money:[-40,120], happiness:[3,8]}, imaginationScaled:true, cls:'', result:"{name} went for it." },
+      { label:'Play it safe', effect:{happiness:[1,3]}, cls:'', result:"{name} passed — and wonders sometimes what would've happened." },
+    ],
+  },
+  {
+    id:'old_rival', brackets:['teen','adult','senior'],
+    prompt:"An old rival shows up out of nowhere, clearly still with something to prove.",
+    choices:[
+      { label:'Rise above it', effect:{happiness:[4,7]}, cls:'good', result:"{name} stayed gracious about it, and it felt good not to take the bait." },
+      { label:'Match their energy', effect:{happiness:[-3,3], looks:[1,3]}, cls:'', result:"{name} gave as good as they got. Petty, but satisfying." },
+    ],
+  },
+  {
+    id:'family_secret', brackets:['adult','senior'],
+    prompt:"{name} stumbles onto an old family secret nobody ever talked about.",
+    choices:[
+      { label:'Bring it up with family', effect:{happiness:[-4,4], smarts:[2,4]}, cls:'', result:"{name} brought it up. An uncomfortable conversation, but an honest one." },
+      { label:'Let it stay buried', effect:{happiness:[1,3]}, cls:'', result:"{name} decided some things are better left alone." },
+    ],
+  },
+];
+// Era-specific one-off storylines — same blocking-choice mechanic as the
+// generic MINI_STORIES above, but flavored to a single era instead of
+// reusable across all five, so each era's stretch of the game gets at least
+// one story beat that couldn't happen anywhere else.
+const ERA_MINI_STORIES = {
+  wildwest: [
+    { id:'range_feud', brackets:['adult','senior'],
+      prompt:"Two ranching families in town are feuding hard over water rights, and both sides are quietly asking {name} to pick one.",
+      choices:[
+        { label:'Side with the smaller ranch', effect:{happiness:[3,6]}, cls:'good', result:"{name} sided with the underdog. Made a loyal friend and a lasting enemy in the same afternoon." },
+        { label:'Stay neutral', effect:{happiness:[-2,2]}, cls:'', result:"{name} stayed out of it, and both sides quietly resented the fence-sitting." },
+      ] },
+  ],
+  twenties: [
+    { id:'bootleg_favor', brackets:['teen','adult'],
+      prompt:"A bootlegger {name} vaguely knows asks for a \"small favor\" — running a package across town tonight, no questions asked.",
+      choices:[
+        { label:'Do the favor', effect:{money:[40,90], happiness:[-3,3]}, cls:'', result:"{name} did the favor. Good money, and a nagging feeling about what was actually in that package." },
+        { label:'Turn it down', effect:{happiness:[1,3]}, cls:'good', result:"{name} said no. Safer, and a lot easier to sleep at night." },
+      ] },
+  ],
+  postwar: [
+    { id:'factory_dispute', brackets:['adult'],
+      prompt:"The factory floor is talking strike over safety conditions, and {name} is being asked to sign the petition.",
+      choices:[
+        { label:'Sign it', effect:{happiness:[3,6], money:[-10,10]}, cls:'good', result:"{name} signed. Management noticed exactly who did." },
+        { label:'Stay out of it', effect:{happiness:[-2,2]}, cls:'', result:"{name} kept their head down and let others fight it out." },
+      ] },
+  ],
+  modern: [
+    { id:'gig_spiral', brackets:['teen','adult'],
+      prompt:"A gig-app algorithm dangles a \"guaranteed bonus\" if {name} takes just a few more back-to-back jobs today.",
+      choices:[
+        { label:'Chase the bonus', effect:{money:[20,60], health:[-6,-2], happiness:[-3,1]}, cls:'', result:"{name} chased the bonus and earned it, running on fumes by the end of the night." },
+        { label:'Log off for the day', effect:{happiness:[3,6]}, cls:'good', result:"{name} logged off. The bonus wasn't worth it." },
+      ] },
+  ],
+  future: [
+    { id:'ai_dilemma', brackets:['adult','senior'],
+      prompt:"{name}'s AI coworker quietly flags that a project shortcut the whole team is using probably isn't safe — but reporting it would slow everyone down.",
+      choices:[
+        { label:'Report it', effect:{happiness:[2,5], money:[-10,10]}, cls:'good', result:"{name} reported it. The team grumbled, but nothing went wrong later." },
+        { label:'Let it slide', effect:{money:[10,30], happiness:[-3,2]}, cls:'', result:"{name} let it slide. The deadline was met, and {name} tried not to think about it again." },
+      ] },
+  ],
+};
+function storiesFor(bracket, eraId){
+  const generic = MINI_STORIES.filter(s => !s.brackets || s.brackets.includes(bracket));
+  const eraSpecific = (ERA_MINI_STORIES[eraId] || []).filter(s => !s.brackets || s.brackets.includes(bracket));
+  return generic.concat(eraSpecific);
+}
+function openStoryModal(c, story, onDone){
+  const overlay = document.getElementById('story-overlay');
+  overlay.innerHTML = `
+    <div class="story-panel">
+      <h2 style="margin-top:0;">A Moment…</h2>
+      <p class="story-prompt">${fill(story.prompt, c, null)}</p>
+      <div class="story-choices">
+        ${story.choices.map((ch, idx) => `<button class="btn-secondary story-choice-btn" data-idx="${idx}">${escapeHtml(ch.label)}</button>`).join('')}
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+  overlay.querySelectorAll('.story-choice-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const idx = parseInt(btn.dataset.idx, 10);
+      const choice = story.choices[idx];
+      let effect = choice.effect || {};
+      if(choice.imaginationScaled && effect.money){
+        // Nudge the risky-choice money range by imagination: a more creative
+        // character (imagination well above the 25-55 starting range) spots
+        // more upside; a less creative one skews toward the downside.
+        const bonus = Math.round(((c.stats.imagination||0) - 50) / 5);
+        effect = Object.assign({}, effect, { money: [effect.money[0] + bonus, effect.money[1] + bonus] });
+      }
+      const deltas = applyEffectSpec(c, effect, null);
+      logEvent(c, fill(choice.result, c, null), choice.cls || eventClassFromDeltas(deltas));
+      overlay.style.display = 'none';
+      overlay.innerHTML = '';
+      onDone();
+    };
+  });
+}
+
+/* ---------- cumulative Bloodline Score ---------- */
+// A blended number across the whole family line (wealth + longevity +
+// achievements) — a personal record to try to beat on the next attempt,
+// without needing multiplayer or accounts.
+function computeBloodlineScore(){
+  let score = 0;
+  const lives = state.familyLog.slice();
+  // Only add state.char separately while alive — once dead, killCharacter()
+  // has already recorded them in familyLog, so this avoids double-counting
+  // the same life (same dedup rule as buildTreeChain above).
+  if(state.char && state.char.alive) lives.push({ money: (state.char.money||0), savings: (state.char.savings||0), age: state.char.age });
+  lives.forEach(f=>{
+    // Net worth = cash + savings — a life that built up savings shouldn't
+    // score lower than one that kept the same amount as loose cash.
+    score += Math.round(((f.money||0) + (f.savings||0)) / 100);
+    score += (f.age||0) * 3;
+  });
+  score += (state.achievementsUnlocked ? state.achievementsUnlocked.length : 0) * 25;
+  return score;
+}
+
+/* ---------- achievements ---------- */
+// Checked continuously against the living character (and the family as a
+// whole); once unlocked, an achievement stays unlocked for the rest of the
+// bloodline — a checklist to give structure to "what should I try this time."
+const ACHIEVEMENTS = [
+  { id:'centenarian', label:'Live to 100', desc:'Reach age 100.', scope:'life', check:c => c.age >= 100 },
+  { id:'millionaire', label:'Die a Millionaire', desc:'Have $1,000,000 or more between cash and savings.', scope:'life', check:c => ((c.money||0) + (c.savings||0)) >= 1000000 },
+  { id:'legendary_life', label:'Legendary Life', desc:'Experience a legendary life event.', scope:'life', check:c => c.events.some(e => e.legendary) },
+  { id:'black_belt', label:'Black Belt', desc:'Reach Black Belt in martial arts.', scope:'life', check:c => (c.skills && c.skills.martialArts || 0) >= 21 },
+  { id:'prodigy', label:'Prodigy', desc:'Reach the Prodigy academic tier.', scope:'life', check:c => (c.skills && c.skills.academic || 0) >= 20 },
+  { id:'elite_athlete', label:'Elite Athlete', desc:'Reach Elite in sports.', scope:'life', check:c => (c.skills && c.skills.sports || 0) >= 20 },
+  { id:'master_artist', label:'Master Artist', desc:'Reach Master Artist in arts/music.', scope:'life', check:c => (c.skills && c.skills.arts || 0) >= 20 },
+  { id:'well_rounded', label:'Well-Rounded', desc:'Reach 80+ in every stat at once.', scope:'life', check:c => ['health','happiness','smarts','looks','imagination'].every(k => (c.stats[k]||0) >= 80) },
+  { id:'nest_egg', label:'Nest Egg', desc:'Build savings of $10,000 or more.', scope:'life', check:c => (c.savings||0) >= 10000 },
+  { id:'fully_connected', label:'Fully Connected', desc:'Have a pet, a best friend, and a partner all at once.', scope:'life', check:c => ['pet','bestfriend','partner'].every(role => c.relationships.some(r => r.active && r.role === role)) },
+  { id:'retired_in_style', label:'Retired in Style', desc:'Reach retirement age with $5,000 or more.', scope:'life', check:c => c.age >= 65 && ((c.money||0) + (c.savings||0)) >= 5000 },
+  { id:'big_winner', label:'Big Winner', desc:'Land a huge investment payoff.', scope:'life', check:c => !!c.hadGreatInvestment },
+  { id:'dynasty', label:'Dynasty', desc:'Carry the bloodline to Generation 5.', scope:'family', check:s => s.generation >= 5 },
+  { id:'century_bloodline', label:'Century Bloodline', desc:'Reach a Bloodline Score of 500 or more.', scope:'family', check:s => computeBloodlineScore() >= 500 },
+];
+function checkAchievements(){
+  if(!state.achievementsUnlocked) state.achievementsUnlocked = [];
+  const c = state.char;
+  const newlyUnlocked = [];
+  ACHIEVEMENTS.forEach(a=>{
+    if(state.achievementsUnlocked.includes(a.id)) return;
+    let earned = false;
+    if(a.scope === 'life' && c) earned = !!a.check(c);
+    else if(a.scope === 'family') earned = !!a.check(state);
+    if(earned){ state.achievementsUnlocked.push(a.id); newlyUnlocked.push(a); }
+  });
+  return newlyUnlocked;
+}
+function openAchievements(){
+  const overlay = document.getElementById('tree-overlay');
+  const unlocked = state.achievementsUnlocked || [];
+  const rows = ACHIEVEMENTS.map(a=>{
+    const got = unlocked.includes(a.id);
+    return `<div class="ach-row${got ? ' got' : ''}">
+      <span class="ach-icon">${got ? '🏆' : '🔒'}</span>
+      <span class="ach-body"><span class="ach-label">${escapeHtml(a.label)}</span><span class="ach-desc">${escapeHtml(a.desc)}</span></span>
+    </div>`;
+  }).join('');
+  overlay.innerHTML = `
+    <div class="tree-panel">
+      <button class="tree-close" id="tree-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">Achievements</h2>
+      <div class="tree-sub">${unlocked.length} of ${ACHIEVEMENTS.length} unlocked · Bloodline Score: ${computeBloodlineScore().toLocaleString()}</div>
+      <div class="ach-list">${rows}</div>
+    </div>`;
+  overlay.style.display = 'flex';
+  document.getElementById('tree-close-btn').onclick = closeFamilyTree;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeFamilyTree(); };
+}
+
+/* ---------- character creation ---------- */
+function newCharacter(eraIndex, name, inherited){
+  const era = ERAS[eraIndex];
+  const base = { health: randInt(55,85), happiness: randInt(50,80), smarts: randInt(35,70), looks: randInt(35,70), imagination: randInt(25,55) };
+  if(inherited && inherited.bonusStat) base[inherited.bonusStat] = clamp(base[inherited.bonusStat] + 15);
+  const startMoney = inherited && inherited.money != null ? inherited.money : randInt(...era.moneyRange);
+  const surname = deriveSurname(name);
+  const fam = makeFamily(era.id, surname);
+  const c = {
+    name, eraIndex, age:0, stats:base, money:Math.round(startMoney), savings:0,
+    job:null, salary:0, alive:true, events:[], generation: state.generation,
+    relationships:[], owned:[], actionUsage:{}, surname, _usedText:{},
+    skills:{ sports:0, martialArts:0, academic:0, arts:0 },
+  };
+  fam.rels.forEach(r=>addRelationship(c, r.role, r.name, r.species?{species:r.species}:null));
+  return c;
+}
+
+/* ---------- effect application ---------- */
+function applyEffectSpec(c, spec, rel){
+  const deltas = {};
+  ['health','happiness','smarts','looks','imagination','money'].forEach(k=>{
+    if(spec[k] !== undefined) deltas[k] = rollRange(spec[k]);
+  });
+  if(spec.health) c.stats.health = clamp(c.stats.health + deltas.health);
+  if(spec.happiness) c.stats.happiness = clamp(c.stats.happiness + deltas.happiness);
+  if(spec.smarts) c.stats.smarts = clamp(c.stats.smarts + deltas.smarts);
+  if(spec.looks) c.stats.looks = clamp(c.stats.looks + deltas.looks);
+  if(spec.imagination) c.stats.imagination = clamp((c.stats.imagination||0) + deltas.imagination);
+  if(spec.money) c.money = Math.max(0, Math.round(c.money + deltas.money));
+  if(rel && spec.closeness !== undefined){
+    rel.closeness = clamp(rel.closeness + rollRange(spec.closeness));
+  } else if(rel){
+    rel.closeness = clamp(rel.closeness + 3); // small default bump for any interaction
+  }
+  return deltas;
+}
+
+function logEvent(c, text, cls, milestone, legendary){
+  c.events.unshift({ text, cls: milestone ? 'milestone' : (cls||''), tag:`Age ${c.age}`, legendary: !!legendary });
+}
+
+function eventClassFromDeltas(d){
+  const total = (d.health||0)+(d.happiness||0)+(d.smarts||0)+(d.looks||0)+((d.money||0)/10);
+  if(total > 1) return 'good';
+  if(total < -1) return 'bad';
+  return '';
+}
+
+/* ---------- economy: savings interest + investing ---------- */
+const ERA_INTEREST_RATE = { wildwest:0.015, twenties:0.02, postwar:0.025, modern:0.02, future:0.03 };
+function applyEconomyInterest(c){
+  if(c.savings > 0){
+    const rate = ERA_INTEREST_RATE[ERAS[c.eraIndex].id] || 0.02;
+    c.savings += Math.max(1, Math.round(c.savings * rate));
+  }
+}
+// Weighted random investment outcome — mostly modest, occasionally a big win or a real loss.
+function investOutcome(){
+  const roll = Math.random();
+  if(roll < 0.30) return { mult: -(randInt(30,70)/100), tag:'bad' };
+  if(roll < 0.65) return { mult: (randInt(-10,10)/100), tag:'flat' };
+  if(roll < 0.92) return { mult: (randInt(20,80)/100), tag:'good' };
+  return { mult: (randInt(90,200)/100), tag:'great' };
+}
+
+/* ---------- skill progression ---------- */
+// Real rank/level progression instead of a flat stat bump — tied to repeated
+// practice of the same action, not a generic number going up in isolation.
+const SKILL_ACTION_MAP = {
+  join_sport:'sports', varsity:'sports',
+  martial_arts:'martialArts', martial_arts_t:'martialArts',
+  study:'academic', study_hard:'academic', take_class:'academic',
+  join_arts:'arts', band_arts:'arts',
+};
+const SPORTS_TIERS = ['Beginner','Developing','Solid Player','Skilled','Standout','Elite'];
+const MARTIAL_ARTS_BELTS = ['White Belt','Yellow Belt','Orange Belt','Green Belt','Blue Belt','Purple Belt','Brown Belt','Black Belt'];
+const ACADEMIC_TIERS = ['No Focus','Developing Student','Solid Student','Honor Student','Scholar','Prodigy'];
+const ARTS_TIERS = ['Just Starting','Developing Talent','Skilled Creative','Accomplished Artist','Standout Talent','Master Artist'];
+function skillTier(tiers, reps, perTier){
+  const idx = Math.min(tiers.length - 1, Math.floor((reps||0) / perTier));
+  return tiers[idx];
+}
+function recordSkillPractice(c, actionId){
+  const key = SKILL_ACTION_MAP[actionId];
+  if(!key) return;
+  if(!c.skills) c.skills = { sports:0, martialArts:0, academic:0, arts:0 };
+  c.skills[key] = (c.skills[key]||0) + 1;
+}
+function skillsHtml(c){
+  if(!c.skills) return '';
+  const rows = [];
+  if(c.skills.sports > 0) rows.push(`<div>Sports: <strong>${skillTier(SPORTS_TIERS, c.skills.sports, 4)}</strong></div>`);
+  if(c.skills.martialArts > 0) rows.push(`<div>Martial Arts: <strong>${skillTier(MARTIAL_ARTS_BELTS, c.skills.martialArts, 3)}</strong></div>`);
+  if(c.skills.academic > 0) rows.push(`<div>Academic Track: <strong>${skillTier(ACADEMIC_TIERS, c.skills.academic, 4)}</strong></div>`);
+  if((c.skills.arts||0) > 0) rows.push(`<div>Arts: <strong>${skillTier(ARTS_TIERS, c.skills.arts, 4)}</strong></div>`);
+  if(!rows.length) return '';
+  return `<div class="skills-box divider"><h4>Skills</h4>${rows.join('')}</div>`;
+}
+
+/* ---------- special action handlers ---------- */
+function handleSpecial(c, special, action){
+  const era = ERAS[c.eraIndex];
+  if(special === 'make_friend' && !relByRole(c,'bestfriend')){
+    const name = pick(FIRST_NAMES)+' '+pick(LAST_NAMES);
+    addRelationship(c, 'bestfriend', name);
+    logEvent(c, `${firstName(c.name)} became close friends with ${firstName(name)}.`, 'good');
+  } else if(special === 'find_partner' && !relByRole(c,'partner')){
+    const name = pick(FIRST_NAMES)+' '+pick(LAST_NAMES);
+    addRelationship(c, 'partner', name);
+    logEvent(c, `${firstName(c.name)} started seeing ${firstName(name)}.`, 'good');
+  } else if(special === 'teen_job' && !c.job){
+    const title = pick(TEEN_JOB_TITLES[era.id]);
+    c.job = title; c.salary = randInt(8,25);
+    addRelationship(c, 'boss', pick(BOSS_NAMES));
+    logEvent(c, `${firstName(c.name)} got a part-time job as a ${title}.`, 'good');
+  } else if(special === 'deposit_savings'){
+    const maxAmt = Math.floor(c.money);
+    if(maxAmt < 1){
+      logEvent(c, `${firstName(c.name)} didn't have any spare cash to put away this year.`, '');
+    } else {
+      // Player picks the amount now instead of a fixed 50% — clamped to
+      // what's actually on hand so this can never go negative.
+      const input = prompt(`How much would you like to move into savings? (You have $${maxAmt.toLocaleString()} on hand)`, String(Math.floor(maxAmt * 0.5)));
+      const amount = Math.min(maxAmt, Math.max(0, Math.floor(Number(input))));
+      if(input === null || !amount || isNaN(amount)){
+        logEvent(c, `${firstName(c.name)} thought about saving some money but didn't get around to it.`, '');
+      } else {
+        c.money -= amount; c.savings = (c.savings||0) + amount;
+        logEvent(c, `${firstName(c.name)} tucked $${amount.toLocaleString()} away into savings.`, 'good');
+      }
+    }
+  } else if(special === 'withdraw_savings'){
+    const maxAmt = Math.floor(c.savings || 0);
+    if(maxAmt <= 0){
+      logEvent(c, `${firstName(c.name)} checked their savings — there wasn't anything there yet.`, '');
+    } else {
+      const input = prompt(`How much would you like to withdraw from savings? (You have $${maxAmt.toLocaleString()} saved)`, String(maxAmt));
+      const amount = Math.min(maxAmt, Math.max(0, Math.floor(Number(input))));
+      if(input === null || !amount || isNaN(amount)){
+        logEvent(c, `${firstName(c.name)} decided to leave their savings alone for now.`, '');
+      } else {
+        c.savings -= amount; c.money += amount;
+        logEvent(c, `${firstName(c.name)} pulled $${amount.toLocaleString()} out of savings.`, '');
+      }
+    }
+  } else if(special === 'marry' && action && action.rel && !action.rel.married){
+    action.rel.married = true;
+    action.rel.closeness = clamp(action.rel.closeness + 15);
+    logEvent(c, `${firstName(c.name)} and ${firstName(action.rel.name)} got married!`, 'good', true);
+  } else if(special === 'invest'){
+    const stake = (action && action.cost) || 0;
+    const outcome = investOutcome();
+    const change = Math.round(stake * outcome.mult);
+    // The stake was already deducted from money as this action's cost before
+    // handleSpecial ran (see performAction). Investing should return principal
+    // plus gain/loss, not just the gain on top of an already-spent stake — the
+    // old version made "good"/"flat" outcomes net losses despite the message
+    // saying the investment "paid off." Net effect on money is now exactly `change`.
+    c.money = Math.max(0, c.money + stake + change);
+    let text;
+    if(outcome.tag === 'bad') text = `${firstName(c.name)}'s investment went south — lost $${Math.abs(change)}.`;
+    else if(outcome.tag === 'flat') text = `${firstName(c.name)}'s investment barely moved either way.`;
+    else if(outcome.tag === 'good') text = `${firstName(c.name)}'s investment paid off nicely — up $${change}.`;
+    else { text = `${firstName(c.name)}'s investment paid off big — up $${change}!`; c.hadGreatInvestment = true; }
+    logEvent(c, text, change > 5 ? 'good' : (change < -5 ? 'bad' : ''));
+  }
+}
+
+/* ---------- building the action menu ---------- */
+function buildActionMenu(c){
+  const bracket = ageBracket(c.age);
+  const era = ERAS[c.eraIndex];
+  const actions = [];
+
+  c.relationships.filter(r=>r.active).forEach(rel=>{
+    const defs = ROLE_ACTIONS[rel.role] || [];
+    defs.forEach(def=>{
+      if(def.minAge && c.age < def.minAge) return;
+      if(def.maxAge && c.age > def.maxAge) return;
+      if(def.special === 'marry' && rel.married) return;
+      actions.push({ def, rel, key: def.id+'_'+rel.id,
+        label: fill(def.label, c, rel), category: def.category, cost: def.cost||0 });
+    });
+  });
+
+  (BRACKET_ACTIONS[bracket]||[]).forEach(def=>{
+    if(def.special === 'find_partner' && relByRole(c,'partner')) return;
+    if(def.special === 'make_friend' && relByRole(c,'bestfriend')) return;
+    if(def.special === 'teen_job' && c.job) return;
+    if(def.minAge && c.age < def.minAge) return;
+    // minSmarts/minImagination: content that only opens up once a character
+    // has built up that stat, so smarts/imagination gate real opportunities
+    // instead of just being numbers that go up in isolation.
+    if(def.minSmarts && (c.stats.smarts||0) < def.minSmarts) return;
+    if(def.minImagination && (c.stats.imagination||0) < def.minImagination) return;
+    actions.push({ def, rel:null, key: def.id, label: fill(def.label, c, null), category: def.category, cost: def.cost||0 });
+  });
+
+  const eraDefs = (ERA_BRACKET_ACTIONS[era.id]||{})[bracket] || [];
+  eraDefs.forEach(def=>{
+    actions.push({ def, rel:null, key: def.id, label: fill(def.label, c, null), category: def.category, cost: def.cost||0 });
+  });
+
+  if(bracket === 'adult'){
+    BRACKET_ACTIONS.adult.forEach(()=>{}); // no-op, already added above
+  }
+
+  (SHOP_ITEMS[era.id]||[]).forEach(item=>{
+    if(c.age < item.minAge || c.owned.includes(item.id)) return;
+    actions.push({
+      shopItem:item, rel:null, key:'buy_'+item.id,
+      label:`Buy: ${item.label}`, category:'Shop', cost:item.cost,
+    });
+  });
+
+  return actions;
+}
+
+// Categories that represent skill-building / academic practice can be repeated
+// up to 5x per year; everything else can be chosen once per year (but every
+// available option can be chosen, not just a handful).
+const SKILL_CATEGORIES = ['School', 'Activities', 'Growth'];
+function actionCap(category){ return SKILL_CATEGORIES.includes(category) ? 5 : 1; }
+function actionUsageCount(c, key){ return c.actionUsage[key] || 0; }
+
+function performAction(c, action){
+  const cap = actionCap(action.category);
+  const used = actionUsageCount(c, action.key);
+  if(used >= cap) return;
+  if(action.cost && c.money < action.cost) return;
+  const def = action.def;
+
+  if(action.shopItem){
+    c.money -= action.cost;
+    c.owned.push(action.shopItem.id);
+    applyEffectSpec(c, action.shopItem.effect, null);
+    logEvent(c, `${firstName(c.name)} bought ${action.shopItem.label.toLowerCase()}.`, 'good');
+    c.actionUsage[action.key] = used + 1;
+    renderGame();
+    return;
+  }
+
+  if(action.cost) c.money = Math.max(0, c.money - action.cost);
+  const deltas = applyEffectSpec(c, def.effect || {}, action.rel);
+  if(def.special){
+    handleSpecial(c, def.special, action);
+  } else if(def.requiresJob && !c.job){
+    // no job, action fizzles softly
+    logEvent(c, `${firstName(c.name)} looked for extra work but didn't have a job to lean on.`, '');
+  } else if(def.texts && def.texts.length){
+    const text = fill(pickText(c, def.id+(action.rel?('_'+action.rel.id):''), def.texts), c, action.rel);
+    logEvent(c, text, eventClassFromDeltas(deltas));
+  }
+  recordSkillPractice(c, def.id);
+  c.actionUsage[action.key] = used + 1;
+  renderGame();
+}
+
+/* ---------- milestones & aging ---------- */
+function applyMilestones(c){
+  const era = ERAS[c.eraIndex];
+  if(c.age === 0){ logEvent(c, `${firstName(c.name)} was born.`, '', true); }
+  if(c.age === 1){
+    logEvent(c, `${firstName(c.name)} took their first steps.`, '', true);
+    logEvent(c, `${firstName(c.name)} said their first word.`, '', true);
+  }
+  if(c.age === 5){
+    logEvent(c, `${firstName(c.name)} started school.`, '', true);
+    if(!relByRole(c,'teacher')) addRelationship(c, 'teacher', pick(TEACHER_NAMES));
+    if(!relByRole(c,'bestfriend')) addRelationship(c, 'bestfriend', pick(FIRST_NAMES)+' '+pick(LAST_NAMES));
+  }
+  if(c.age === 18){
+    c.relationships.filter(r=>r.role==='teacher').forEach(r=>r.active=false);
+    const highSmarts = (c.stats.smarts||0) >= ELITE_JOB_SMARTS_THRESHOLD;
+    const titlePool = highSmarts ? (ELITE_JOB_TITLES[era.id] || JOB_TITLES[era.id]) : JOB_TITLES[era.id];
+    const title = pick(titlePool);
+    c.job = title;
+    c.salary = randInt(...era.moneyRange) * (highSmarts ? 0.9 : 0.6) + 20;
+    c.salary = Math.round(c.salary);
+    if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
+    addRelationship(c, 'coworker', pick(FIRST_NAMES)+' '+pick(LAST_NAMES));
+    const msg = highSmarts
+      ? `${firstName(c.name)}'s smarts opened doors — they became an adult and landed a competitive job as a ${title}.`
+      : `${firstName(c.name)} became an adult and took a job as a ${title}.`;
+    logEvent(c, msg, '', true);
+  }
+  if(c.age === 65 && c.job){
+    logEvent(c, `${firstName(c.name)} retired after years as a ${c.job}.`, '', true);
+    c.job = null;
+    c.relationships.filter(r=>r.role==='boss'||r.role==='coworker').forEach(r=>r.active=false);
+  }
+}
+
+function deathCheck(c){
+  if(c.stats.health <= 0) return true;
+  let chance = 0;
+  if(c.age > 60) chance += (c.age-60) * 0.012;
+  chance += 0.004;
+  if(c.stats.health < 25) chance += 0.05;
+  return Math.random() < chance;
+}
+
+/* ---------- turn resolution: 6-month / 1-year time-skip ---------- */
+// c.monthsIntoYear tracks progress toward completing the current age year
+// (0 or 6; undefined on older saves is treated as 0). Advancing 6 months that
+// doesn't cross into a new year is a lighter "check-in" turn — no salary, no
+// milestones, no legendary/story roll, just a fresh set of actions and a
+// smaller chance of an ordinary event. Advancing into a new year (either via
+// a 1-year jump, or a second 6-month step) runs the full year-end resolution.
+function advanceTurn(months){
+  const c = state.char;
+  if(!c || !c.alive) return;
+  c.monthsIntoYear = (c.monthsIntoYear||0) + months;
+  if(c.monthsIntoYear >= 12){
+    c.monthsIntoYear -= 12;
+    c.age += 1;
+    completeYear(c);
+  } else {
+    partialAdvance(c);
+  }
+}
+
+function partialAdvance(c){
+  const bracket = ageBracket(c.age);
+  const pool = worldEventPool(ERAS[c.eraIndex].id, bracket);
+  if(pool.length && Math.random() < 0.25){
+    const ev = pick(pool);
+    const deltas = applyEffectSpec(c, ev.e, null);
+    if(ev.special) handleSpecial(c, ev.special);
+    logEvent(c, fill(ev.t, c, null), eventClassFromDeltas(deltas));
+  }
+  c.actionUsage = {};
+  renderGame();
+}
+
+function completeYear(c){
+  if(c.job && c.age >= 18) c.money += c.salary;
+  if(c.age > 60) c.stats.health = clamp(c.stats.health - randInt(1,4));
+  applyEconomyInterest(c);
+
+  // relationship decay if neglected — mild, keeps the system meaningful
+  c.relationships.filter(r=>r.active).forEach(r=>{ r.closeness = clamp(r.closeness - randInt(1,3)); });
+
+  const bracket = ageBracket(c.age);
+
+  // Branching mini-storyline roll — pauses year-end resolution until the
+  // player chooses, and stands in for this year's normal world event (a
+  // story IS the year's event, not an addition on top of it).
+  if(STORY_BRACKETS.includes(bracket) && Math.random() < STORY_CHANCE){
+    const storyPool = storiesFor(bracket, ERAS[c.eraIndex].id);
+    if(storyPool.length){
+      openStoryModal(c, pick(storyPool), () => finishYear(c));
+      return;
+    }
+  }
+
+  runWorldEventAndLegendary(c, bracket);
+  finishYear(c);
+}
+
+function runWorldEventAndLegendary(c, bracket){
+  const pool = worldEventPool(ERAS[c.eraIndex].id, bracket);
+  if(pool.length && Math.random() < 0.55){
+    const ev = pick(pool);
+    const deltas = applyEffectSpec(c, ev.e, null);
+    if(ev.special) handleSpecial(c, ev.special);
+    logEvent(c, fill(ev.t, c, null), eventClassFromDeltas(deltas));
+  }
+
+  // Rare legendary event roll — independent of the regular world-event roll,
+  // so a memorable life beat can land even in an otherwise quiet year.
+  if(LEGENDARY_BRACKETS.includes(bracket) && Math.random() < LEGENDARY_CHANCE){
+    const legendaryPool = LEGENDARY_EVENTS[ERAS[c.eraIndex].id] || [];
+    if(legendaryPool.length){
+      const lev = pick(legendaryPool);
+      applyEffectSpec(c, lev.e, null);
+      logEvent(c, fill(lev.t, c, null), lev.cls, false, true);
+    }
+  }
+}
+
+function finishYear(c){
+  applyMilestones(c);
+  c.actionUsage = {};
+  if(deathCheck(c)){ killCharacter(c); return; }
+  cloudAutosave(); // one save per completed year — plenty often, not a network call per click
+  renderGame();
+}
+
+function killCharacter(c){
+  c.alive = false;
+  const causes = c.stats.health<=0 ? ['a long illness','failing health','a fading heart'] : ['old age','a sudden accident','an unexpected turn'];
+  c.causeOfDeath = pick(causes);
+  checkAchievements(); // one final check against this life before it's recorded
+  state.familyLog.push({
+    gen:c.generation, name:c.name, era:ERAS[c.eraIndex].name, eraId:ERAS[c.eraIndex].id,
+    age:c.age, money:c.money, savings:c.savings||0, peakStat: topStat(c), causeOfDeath:c.causeOfDeath, highlight: topHighlightText(c),
+  });
+  trackEvent('life_ended', { bloodlineScore: computeBloodlineScore(), achievementsUnlocked: state.achievementsUnlocked || [] });
+  cloudAutosave();
+  renderDeath(c);
+}
+function topStat(c){ const e=Object.entries(c.stats); e.sort((a,b)=>b[1]-a[1]); return e[0][0]; }
+
+// The single most shareable moment from a finished life — legendary events win,
+// otherwise the first notable good/bad event. Used by the family tree view.
+function topHighlightText(c){
+  const legendaryEvent = c.events.find(e => e.legendary);
+  if(legendaryEvent) return legendaryEvent.text;
+  const notableEvent = c.events.find(e => e.cls === 'good' || e.cls === 'bad');
+  return notableEvent ? notableEvent.text : null;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+// Builds a plain-text, screenshot/paste-friendly summary of a finished life —
+// designed to be the thing a player actually shares with a friend.
+// Legendary moments are the most shareable, so they lead the highlight reel —
+// shared by the text share, the image share, and the family tree's quote.
+function topShareHighlights(c, n){
+  const legendaryHighlights = c.events.filter(e => e.legendary).map(e => e.text);
+  const otherHighlights = c.events.filter(e => !e.legendary && (e.cls === 'good' || e.cls === 'bad')).map(e => e.text);
+  return legendaryHighlights.concat(otherHighlights).slice(0, n);
+}
+
+function generateShareText(c){
+  const era = ERAS[c.eraIndex];
+  const highlights = topShareHighlights(c, 3);
+  const surname = c.surname || c.name.split(' ').slice(-1)[0];
+  const totalEstate = (c.money||0) + (c.savings||0);
+  const lines = [];
+  lines.push('🩸 BLOODLINE');
+  lines.push(`${c.name} — ${era.name} (${era.years})`);
+  lines.push(`Age ${c.age} • ${c.job ? c.job : 'no steady job'} • Died of ${c.causeOfDeath}`);
+  lines.push(`Left $${totalEstate.toLocaleString()} to the next generation`);
+  if(highlights.length){
+    lines.push('');
+    lines.push('Life highlights:');
+    highlights.forEach(h => lines.push(`• ${h}`));
+  }
+  lines.push('');
+  lines.push(`Generation ${c.generation} of the ${surname} bloodline.`);
+  lines.push('Play yours → https://bloodline-game.netlify.app');
+  return lines.join('\n');
+}
+
+/* ---------- downloadable share image (v2 of the share feature) ---------- */
+function wrapCanvasText(ctx, text, maxWidth){
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  words.forEach(w=>{
+    const test = line ? line + ' ' + w : w;
+    if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = w; }
+    else line = test;
+  });
+  if(line) lines.push(line);
+  return lines;
+}
+// Redraws the same avatar design as the SVG version, using canvas primitives
+// (canvas can't render live SVG synchronously without an async image load),
+// so the downloadable card matches what's shown in the game.
+function drawAvatarOnCanvas(ctx, cx, cy, radius, c, theme){
+  const grad = ctx.createRadialGradient(cx - radius*0.3, cy - radius*0.4, radius*0.1, cx, cy, radius);
+  grad.addColorStop(0, theme.b);
+  grad.addColorStop(1, theme.a);
+  ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI*2); ctx.fillStyle = grad; ctx.fill();
+
+  const looks = (c.stats && c.stats.looks) || 50;
+  if(looks >= 40){
+    const lw = looks >= 80 ? 6 : looks >= 60 ? 4 : 2;
+    ctx.lineWidth = lw; ctx.strokeStyle = '#f2c94c';
+    ctx.beginPath(); ctx.arc(cx, cy, radius - lw/2, 0, Math.PI*2); ctx.stroke();
+  }
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, radius - 2, 0, Math.PI*2); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  const bracket = ageBracket(c.age);
+  const P = AVATAR_PROPORTIONS[bracket];
+  const scale = (radius*2)/100;
+  const originX = cx - radius, originY = cy - radius;
+  ctx.beginPath();
+  ctx.ellipse(originX + 50*scale, originY + P.bodyCy*scale, P.bodyRx*scale, P.bodyRy*scale, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(originX + 50*scale, originY + P.headCy*scale, P.headR*scale, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+function generateShareCanvas(c){
+  const canvas = document.createElement('canvas');
+  canvas.width = 900; canvas.height = 1200;
+  const ctx = canvas.getContext('2d');
+  const era = ERAS[c.eraIndex];
+  const theme = ERA_THEME[era.id] || DEFAULT_THEME;
+
+  const bgGrad = ctx.createLinearGradient(0,0,0,canvas.height);
+  bgGrad.addColorStop(0, '#1c2130'); bgGrad.addColorStop(1, '#0f1119');
+  ctx.fillStyle = bgGrad; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  const topGrad = ctx.createLinearGradient(0,0,canvas.width,0);
+  topGrad.addColorStop(0, theme.a); topGrad.addColorStop(1, theme.b);
+  ctx.fillStyle = topGrad; ctx.fillRect(0,0,canvas.width,14);
+
+  let y = 90;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = theme.b;
+  ctx.font = '700 32px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('🩸 BLOODLINE', canvas.width/2, y);
+
+  y += 100;
+  drawAvatarOnCanvas(ctx, canvas.width/2, y, 90, c, theme);
+
+  y += 140;
+  ctx.fillStyle = '#e9ebf2';
+  ctx.font = '700 40px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(c.name, canvas.width/2, y);
+
+  y += 42;
+  ctx.fillStyle = '#9aa1b4';
+  ctx.font = '400 22px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`${era.name} (${era.years})`, canvas.width/2, y);
+
+  y += 40;
+  ctx.font = '400 22px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`Age ${c.age} · ${c.job || 'no steady job'} · Died of ${c.causeOfDeath}`, canvas.width/2, y);
+
+  y += 44;
+  ctx.fillStyle = '#4fd18b';
+  ctx.font = '700 26px "Segoe UI", Arial, sans-serif';
+  const totalEstateImg = (c.money||0) + (c.savings||0);
+  ctx.fillText(`Left $${totalEstateImg.toLocaleString()} to the next generation`, canvas.width/2, y);
+
+  const highlights = topShareHighlights(c, 3);
+  y += 60;
+  if(highlights.length){
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#e9ebf2';
+    ctx.font = '700 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('Life highlights', 70, y);
+    y += 34;
+    ctx.font = '400 20px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#c7cbdb';
+    highlights.forEach(h=>{
+      const lines = wrapCanvasText(ctx, '• ' + h, canvas.width - 140);
+      lines.forEach(line=>{ ctx.fillText(line, 70, y); y += 28; });
+      y += 8;
+    });
+  }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#9aa1b4';
+  ctx.font = '400 20px "Segoe UI", Arial, sans-serif';
+  const surname = c.surname || c.name.split(' ').slice(-1)[0];
+  ctx.fillText(`Generation ${c.generation} of the ${surname} bloodline`, canvas.width/2, canvas.height - 70);
+  ctx.fillStyle = theme.b;
+  ctx.font = '700 22px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('Play yours → bloodline-game.netlify.app', canvas.width/2, canvas.height - 34);
+
+  return canvas;
+}
+function downloadShareImage(c){
+  const canvas = generateShareCanvas(c);
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  const safeName = c.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  a.href = url; a.download = `bloodline-${safeName}-age${c.age}.png`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* ---------- family tree view ---------- */
+// Distinct accent per era so the tree reads as a visual timeline, not a text list.
+const ERA_COLORS = { wildwest:'#c98b5c', twenties:'#c98bff', postwar:'#4fd18b', modern:'#7c9eff', future:'#4cd7f2' };
+function eraIdFromName(name){ const found = ERAS.find(e=>e.name===name); return found ? found.id : ERAS[0].id; }
+
+/* ---------- per-era visual theming ---------- */
+// Each era gets its own two-color accent gradient, applied as CSS custom
+// properties, so the header/buttons/highlights subtly shift with the setting
+// instead of every era looking identical.
+const ERA_THEME = {
+  wildwest:{ a:'#c98b5c', b:'#e0b48c', glow:'#3a2c1f' },
+  twenties:{ a:'#c98bff', b:'#7c9eff', glow:'#241f3a' },
+  postwar:{ a:'#4fd18b', b:'#7ee8ac', glow:'#1a2e22' },
+  modern:{ a:'#7c9eff', b:'#c98bff', glow:'#232a3d' },
+  future:{ a:'#4cd7f2', b:'#7c9eff', glow:'#152a33' },
+};
+const DEFAULT_THEME = { a:'#7c9eff', b:'#c98bff', glow:'#232a3d' };
+function applyEraTheme(eraId){
+  const t = ERA_THEME[eraId] || DEFAULT_THEME;
+  document.documentElement.style.setProperty('--accent', t.a);
+  document.documentElement.style.setProperty('--accent-2', t.b);
+  document.documentElement.style.setProperty('--bg-glow', t.glow || DEFAULT_THEME.glow);
+}
+function resetTheme(){
+  document.documentElement.style.setProperty('--accent', DEFAULT_THEME.a);
+  document.documentElement.style.setProperty('--accent-2', DEFAULT_THEME.b);
+  document.documentElement.style.setProperty('--bg-glow', DEFAULT_THEME.glow);
+}
+
+/* ---------- character avatar ---------- */
+// Deliberately abstract, not a literal illustration: an era-tinted medallion
+// with a neutral silhouette bust that resizes by age bracket, plus a gold
+// ring that appears as the Looks stat climbs. Makes the character read as
+// someone rather than just a stat sheet, without attempting real portraiture.
+let avatarIdCounter = 0;
+const AVATAR_PROPORTIONS = {
+  infant:{ headR:24, headCy:46, bodyRy:22, bodyCy:88, bodyRx:26 },
+  toddler:{ headR:21, headCy:42, bodyRy:24, bodyCy:90, bodyRx:28 },
+  kid:{ headR:18, headCy:38, bodyRy:26, bodyCy:92, bodyRx:30 },
+  teen:{ headR:16, headCy:35, bodyRy:28, bodyCy:94, bodyRx:32 },
+  adult:{ headR:15, headCy:34, bodyRy:29, bodyCy:95, bodyRx:33 },
+  senior:{ headR:15, headCy:36, bodyRy:27, bodyCy:94, bodyRx:31 },
+};
+function avatarSVG(c, size){
+  size = size || 64;
+  const uid = 'av' + (avatarIdCounter++);
+  const bracket = ageBracket(c.age);
+  const eraId = c.eraId || ERAS[c.eraIndex].id;
+  const theme = ERA_THEME[eraId] || DEFAULT_THEME;
+  const looks = (c.stats && c.stats.looks) || 50;
+  const P = AVATAR_PROPORTIONS[bracket];
+  const ringWidth = looks >= 80 ? 4 : looks >= 60 ? 2.5 : looks >= 40 ? 1 : 0;
+  const ringColor = looks >= 40 ? '#f2c94c' : 'transparent';
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" class="avatar-svg">
+      <defs>
+        <radialGradient id="${uid}g" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="${theme.b}"/>
+          <stop offset="100%" stop-color="${theme.a}"/>
+        </radialGradient>
+        <clipPath id="${uid}c"><circle cx="50" cy="50" r="46"/></clipPath>
+      </defs>
+      <circle cx="50" cy="50" r="48" fill="url(#${uid}g)" stroke="${ringColor}" stroke-width="${ringWidth}"/>
+      <g clip-path="url(#${uid}c)">
+        <ellipse cx="50" cy="${P.bodyCy}" rx="${P.bodyRx}" ry="${P.bodyRy}" fill="rgba(255,255,255,0.92)"/>
+        <circle cx="50" cy="${P.headCy}" r="${P.headR}" fill="rgba(255,255,255,0.92)"/>
+        ${bracket==='senior' ? `<circle cx="50" cy="${P.headCy}" r="${P.headR+4}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>` : ''}
+      </g>
+    </svg>`;
+}
+
+function treeSurname(){
+  if(state.char && state.char.surname) return state.char.surname;
+  if(state.familyLog.length){
+    const last = state.familyLog[state.familyLog.length-1];
+    return last.name.split(' ').slice(-1)[0];
+  }
+  return '';
+}
+
+// The chain is linear (one child inherits at a time), not branching — but it's
+// still the family's whole story, oldest ancestor first, current life last.
+function buildTreeChain(){
+  const chain = state.familyLog.map(f => ({ ...f, alive:false }));
+  // Only append state.char separately while they're still alive — once they've
+  // died, killCharacter() has already recorded them in familyLog, so adding
+  // them again here would show the same life twice.
+  if(state.char && state.char.alive){
+    chain.push({
+      gen: state.char.generation, name: state.char.name, era: ERAS[state.char.eraIndex].name,
+      eraId: ERAS[state.char.eraIndex].id, age: state.char.age, money: state.char.money, savings: state.char.savings||0,
+      peakStat: topStat(state.char), causeOfDeath: null,
+      highlight: topHighlightText(state.char), alive: true,
+    });
+  }
+  return chain;
+}
+
+const TRAIT_LABEL = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks'};
+
+function treeNodeHtml(f){
+  const eraId = f.eraId || eraIdFromName(f.era);
+  const color = ERA_COLORS[eraId] || 'var(--accent)';
+  const traitLabel = TRAIT_LABEL[f.peakStat] || f.peakStat;
+  const totalLeft = (f.money||0) + (f.savings||0);
+  const detailLine = f.alive
+    ? `Age ${f.age} · still writing their story`
+    : `Lived to ${f.age} · died of ${f.causeOfDeath || 'unknown causes'} · left $${totalLeft.toLocaleString()}`;
+  const traitChip = traitLabel ? `<span class="tn-trait">Defining trait: ${traitLabel}</span>` : '';
+  const highlightLine = f.highlight ? `<div class="tn-detail tn-quote">"${escapeHtml(f.highlight)}"</div>` : '';
+  return `
+    <div class="tree-node${f.alive ? ' current' : ''}" style="--node-color:${color};">
+      <div class="tn-top">
+        <span class="tn-name-row">${avatarSVG(f, 34)}<span class="tn-name">${escapeHtml(f.name)}</span></span>
+        <span class="tn-gen">Gen ${f.gen}</span>
+      </div>
+      <div class="tn-era">${escapeHtml(f.era)}${f.alive ? ' · currently living' : ''}</div>
+      <div class="tn-detail">${detailLine}</div>
+      ${traitChip}
+      ${highlightLine}
+    </div>`;
+}
+
+function openFamilyTree(){
+  const overlay = document.getElementById('tree-overlay');
+  const chain = buildTreeChain();
+  const surname = treeSurname();
+  overlay.innerHTML = `
+    <div class="tree-panel">
+      <button class="tree-close" id="tree-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">Family Tree</h2>
+      <div class="tree-sub">${chain.length} generation${chain.length===1?'':'s'}${surname ? ` of the ${escapeHtml(surname)} bloodline` : ''} · Bloodline Score: ${computeBloodlineScore().toLocaleString()}</div>
+      ${chain.length ? `<div class="tree-chain">${chain.map(treeNodeHtml).join('')}</div>` : '<div class="tree-empty">No ancestors yet — you\'re the first.</div>'}
+    </div>`;
+  overlay.style.display = 'flex';
+  document.getElementById('tree-close-btn').onclick = closeFamilyTree;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeFamilyTree(); };
+}
+
+function closeFamilyTree(){
+  const overlay = document.getElementById('tree-overlay');
+  overlay.style.display = 'none';
+  overlay.innerHTML = '';
+}
+
+/* ---------- state ---------- */
+let state = { generation:1, familyLog:[], char:null };
+
+/* ---------- rendering ---------- */
+const setupEl = document.getElementById('screen-setup');
+const gameEl = document.getElementById('screen-game');
+const deathEl = document.getElementById('screen-death');
+let selectedEra = 0;
+
+function renderSetup(){
+  gameEl.style.display='none'; deathEl.style.display='none'; setupEl.style.display='block';
+  resetTheme();
+  setupEl.innerHTML = `
+    <h2 style="margin-top:0;">Start a Bloodline</h2>
+    <p style="color:var(--text-dim);font-size:0.9rem;">Pick the era your family's story begins in. When this character dies, you'll be able to continue as their child in the next era.</p>
+    <div class="era-grid" id="era-grid"></div>
+    <label for="name-input">Character name</label>
+    <input type="text" id="name-input" placeholder="e.g. Wyatt Calloway" />
+    <div class="btn-row">
+      <button class="btn-primary" id="start-btn">Begin Life</button>
+      <button class="btn-secondary" id="random-name-btn">Random Name</button>
+      <button class="btn-secondary" id="load-save-btn">Load a Save…</button>
+      ${window.__cloudSaveAvailable ? '<button class="btn-primary" id="cloud-continue-btn">☁️ Continue Your Saved Game</button>' : ''}
+    </div>
+    ${window.__cloudSaveAvailable ? `<p style="color:var(--text-dim);font-size:0.78rem;margin:10px 0 0;">Found a cloud save from this ${CLOUD.authType === 'google' ? 'Google account' : 'device'} — “Continue” picks up right where it left off.</p>` : ''}`;
+  const grid = document.getElementById('era-grid');
+  ERAS.forEach((era, idx)=>{
+    const div = document.createElement('div');
+    div.className = 'era-option' + (idx===selectedEra ? ' selected' : '');
+    div.innerHTML = `<h3>${era.name}</h3><span>${era.years}</span><p style="margin:8px 0 0;font-size:0.82rem;color:var(--text-dim);">${era.desc}</p>`;
+    div.onclick = ()=>{ selectedEra = idx; renderSetup(); };
+    grid.appendChild(div);
+  });
+  document.getElementById('random-name-btn').onclick = ()=>{
+    document.getElementById('name-input').value = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+  };
+  document.getElementById('load-save-btn').onclick = triggerLoad;
+  const cloudBtn = document.getElementById('cloud-continue-btn');
+  if(cloudBtn) cloudBtn.onclick = ()=> loadStatePayload(window.__cloudSaveAvailable);
+  document.getElementById('start-btn').onclick = ()=>{
+    let name = document.getElementById('name-input').value.trim();
+    if(!name) name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    ensureIdentity(()=>{
+      state.generation = 1; state.familyLog = [];
+      state.char = newCharacter(selectedEra, name, null);
+      trackEvent('life_started', { era: ERAS[selectedEra].id });
+      renderGame();
+      cloudAutosave();
+    });
+  };
+}
+
+function statBar(label, key, value){
+  return `<div class="stat-row stat-${key}"><div class="stat-label"><span>${label}</span><span>${value}</span></div>
+    <div class="stat-bar"><div class="stat-fill" style="width:${value}%;"></div></div></div>`;
+}
+
+const ROLE_LABEL = {mother:'Mother',father:'Father',sibling:'Sibling',pet:'Pet',bestfriend:'Best Friend',friend:'Friend',partner:'Partner',teacher:'Teacher',boss:'Boss',coworker:'Coworker'};
+
+// Tabs split what used to be one long scroll into focused views. The vitals
+// (avatar/stats/money/skills) stay always-visible on the left since you want
+// those no matter what you're browsing; only the deeper per-domain content
+// and the matching action categories are tabbed.
+const TAB_CATEGORY_MAP = {
+  life:['School','Work','Activities','Play','Health','Growth','Risk','Hobbies'],
+  relationships:['Family','Social'],
+  finances:['Money','Shop'],
+};
+const TABS = [
+  { id:'life', label:'Life' },
+  { id:'relationships', label:'Relationships' },
+  { id:'finances', label:'Finances' },
+  { id:'family', label:'Family' },
+];
+let activeTab = 'life';
+
+function renderGame(){
+  setupEl.style.display='none'; deathEl.style.display='none'; gameEl.style.display='block';
+  const c = state.char;
+  const era = ERAS[c.eraIndex];
+  applyEraTheme(era.id);
+  checkAchievements().forEach(a => logEvent(c, `🏆 Achievement unlocked: ${a.label}!`, 'good'));
+  const bracket = ageBracket(c.age);
+  const allActions = buildActionMenu(c);
+  const tabActions = activeTab === 'family' ? [] : allActions.filter(a => (TAB_CATEGORY_MAP[activeTab]||[]).includes(a.category));
+
+  const byCat = {};
+  tabActions.forEach(a=>{ (byCat[a.category] = byCat[a.category]||[]).push(a); });
+
+  const relHtml = c.relationships.filter(r=>r.active).map(r=>`
+    <div class="rel-item">
+      <div class="rel-name"><span>${displayName(r)}</span><span class="role">${(r.role === 'partner' && r.married) ? 'Spouse' : (ROLE_LABEL[r.role]||r.role)}</span></div>
+      <div class="rel-bar"><div class="rel-fill" style="width:${r.closeness}%;"></div></div>
+    </div>`).join('');
+
+  const ownedHtml = c.owned.length
+    ? c.owned.map(id=>{ const item=(SHOP_ITEMS[era.id]||[]).find(i=>i.id===id); return `<div>${item?item.label:id}</div>`; }).join('')
+    : '<div>Nothing yet.</div>';
+
+  const tabPanelHtml = {
+    life: '',
+    relationships: `<div class="rel-section">${relHtml || '<div style="font-size:0.8rem;color:var(--text-dim);">No relationships yet.</div>'}</div>`,
+    finances: `<div class="owned-section"><h4>Owned</h4><div class="owned-list">${ownedHtml}</div></div>`,
+    family: `<div class="legacy-box"><h4>Family Legacy — Gen ${state.generation}</h4>
+      ${ state.familyLog.length === 0 ? '<div>No ancestors yet — you\'re the first.</div>'
+         : state.familyLog.map(f=>`<div>Gen ${f.gen}: <strong>${f.name}</strong> (${f.era}) — lived to ${f.age}, left $${((f.money||0)+(f.savings||0)).toLocaleString()}</div>`).join('') }
+      <button class="btn-secondary" id="view-tree-btn" style="margin-top:10px;width:100%;">🌳 View Family Tree</button>
+      <button class="btn-secondary" id="view-achievements-btn" style="margin-top:8px;width:100%;">🏆 Achievements (${(state.achievementsUnlocked||[]).length}/${ACHIEVEMENTS.length})</button>
+    </div>`,
+  }[activeTab];
+
+  // Infants used to get zero actions here — but relationship actions like
+  // "spend time with Mom" already have no minAge, so gating them out just
+  // made the opening years the dead, passive stretch of the game. Infants
+  // now get their own small action set (see BRACKET_ACTIONS.infant) plus
+  // whatever relationship actions naturally qualify.
+  const showActions = activeTab !== 'family';
+
+  gameEl.innerHTML = `
+    <div class="btn-row" style="margin-top:0;margin-bottom:14px;">
+      <span class="cloud-status">${cloudStatusText()}</span>
+      <button class="btn-secondary" id="feedback-btn">💬 Feedback</button>
+      <button class="btn-secondary" id="save-game-btn">Save Game</button>
+      <button class="btn-secondary" id="load-game-btn">Load Save…</button>
+    </div>
+    <div class="game-layout">
+      <div>
+        <div class="char-header">
+          ${avatarSVG(c, 64)}
+          <div><h2>${c.name}</h2><div class="meta">${era.name} · Age ${c.age}${c.job ? ' · '+c.job : ''}</div></div>
+        </div>
+        ${statBar('Health','health',c.stats.health)}
+        ${statBar('Happiness','happiness',c.stats.happiness)}
+        ${statBar('Smarts','smarts',c.stats.smarts)}
+        ${statBar('Looks','looks',c.stats.looks)}
+        ${statBar('Imagination','imagination',c.stats.imagination||0)}
+        <div class="money-line"><span>Cash</span><span class="amt">$${c.money.toLocaleString()}</span></div>
+        ${c.savings ? `<div class="money-line"><span>Savings</span><span class="amt">$${c.savings.toLocaleString()}</span></div>` : ''}
+        ${c.job ? `<div class="job-line">Earning ~$${c.salary}/yr as a ${c.job}</div>` : ''}
+        ${skillsHtml(c)}
+      </div>
+
+      <div>
+        <div class="tab-bar">
+          ${TABS.map(t=>`<button class="tab-btn${activeTab===t.id?' active':''}" data-tab="${t.id}">${t.label}</button>`).join('')}
+        </div>
+        <div id="tab-panel">${tabPanelHtml}</div>
+
+        ${showActions ? `
+        <div class="actions-header">
+          <h3>What will ${firstName(c.name)} do this year?</h3>
+          <div class="actions-left">Do as much as you want, then advance time${(c.monthsIntoYear||0) > 0 ? ' · 6 months in' : ''}</div>
+        </div>
+        <div id="action-area"></div>` : ''}
+
+        <div class="end-year-row">
+          <button class="btn-secondary" id="advance-half-btn">Advance 6 Months →</button>
+          <button class="btn-primary" id="advance-year-btn">Advance 1 Year →</button>
+        </div>
+        <div class="event-feed" id="event-feed"></div>
+      </div>
+    </div>`;
+
+  if(showActions){
+    const actionArea = document.getElementById('action-area');
+    if(tabActions.length === 0){
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:0.82rem;color:var(--text-dim);';
+      empty.textContent = 'Nothing available here yet this year.';
+      actionArea.appendChild(empty);
+    }
+    Object.keys(byCat).forEach(cat=>{
+      const catDiv = document.createElement('div');
+      catDiv.className = 'action-cat';
+      catDiv.textContent = cat;
+      actionArea.appendChild(catDiv);
+      const grid = document.createElement('div');
+      grid.className = 'action-grid';
+      byCat[cat].forEach(a=>{
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        const cap = actionCap(a.category);
+        const used = actionUsageCount(c, a.key);
+        const affordable = !a.cost || c.money >= a.cost;
+        const exhausted = used >= cap;
+        btn.disabled = exhausted || !affordable;
+        let sub = '';
+        if(a.cost) sub += `Costs $${a.cost}`;
+        if(cap > 1){ sub += (sub?' · ':'') + (exhausted ? 'Done for this year' : `Practiced ${used}/${cap} this year`); }
+        else if(used >= 1){ sub += (sub?' · ':'') + 'Done for this year'; }
+        btn.innerHTML = `${a.label}${sub ? `<span class="sub">${sub}</span>` : ''}`;
+        btn.onclick = ()=> performAction(c, a);
+        grid.appendChild(btn);
+      });
+      actionArea.appendChild(grid);
+    });
+  }
+
+  const feed = document.getElementById('event-feed');
+  c.events.slice(0,40).forEach(ev=>{
+    const div = document.createElement('div');
+    div.className = 'event ' + (ev.cls||'') + (ev.legendary ? ' legendary' : '');
+    const tagText = (ev.legendary ? '⭐ Legendary · ' : '') + ev.tag;
+    div.innerHTML = `${ev.text}<span class="tag">${tagText}</span>`;
+    feed.appendChild(div);
+  });
+  feed.scrollTop = 0;
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.onclick = ()=>{ activeTab = btn.dataset.tab; renderGame(); };
+  });
+  document.getElementById('advance-half-btn').onclick = ()=> advanceTurn(6);
+  document.getElementById('advance-year-btn').onclick = ()=> advanceTurn(12);
+  document.getElementById('save-game-btn').onclick = saveGame;
+  document.getElementById('feedback-btn').onclick = openFeedbackModal;
+  document.getElementById('load-game-btn').onclick = ()=>{
+    // Loading immediately replaces the live character with no undo — confirm
+    // first so an accidental click (or idle curiosity) can't wipe a run.
+    if(confirm('Loading a save will replace your current character. Any unsaved progress will be lost. Continue?')) triggerLoad();
+  };
+  const treeBtn = document.getElementById('view-tree-btn');
+  if(treeBtn) treeBtn.onclick = openFamilyTree;
+  const achBtn = document.getElementById('view-achievements-btn');
+  if(achBtn) achBtn.onclick = openAchievements;
+}
+
+function renderDeath(c){
+  gameEl.style.display='none'; setupEl.style.display='none'; deathEl.style.display='block';
+  const era = ERAS[c.eraIndex];
+  applyEraTheme(era.id);
+  const nextEraIndex = Math.min(c.eraIndex + 1, ERAS.length - 1);
+  const nextEra = ERAS[nextEraIndex];
+  const hasNextEra = c.eraIndex < ERAS.length - 1;
+  // Estate = cash + savings. The old version only passed on c.money, so any
+  // savings a player carefully built up simply vanished at death instead of
+  // reaching their heir — this fixes that.
+  const totalEstate = (c.money||0) + (c.savings||0);
+  const inheritance = Math.round(totalEstate * 0.4);
+  const bonusStat = topStat(c);
+  const STAT_LABEL_MAP = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',imagination:'Imagination'};
+  const statLabel = STAT_LABEL_MAP[bonusStat];
+  const shareText = generateShareText(c);
+
+  // Two candidate children to choose from at the handoff — real branching, so
+  // two people playing "the same" bloodline can end up with different stories.
+  const STAT_KEYS = ['health','happiness','smarts','looks','imagination'];
+  function pickDifferentStat(exclude){ let s; let guard=0; do{ s = pick(STAT_KEYS); guard++; } while(s===exclude && guard<10); return s; }
+  const childSurname = c.surname || c.name.split(' ').slice(-1)[0];
+  const child1Name = pick(FIRST_NAMES);
+  let child2Name = pick(FIRST_NAMES);
+  if(child2Name === child1Name) child2Name = pick(FIRST_NAMES);
+  const child1Stat = bonusStat;
+  const child2Stat = pickDifferentStat(child1Stat);
+
+  deathEl.innerHTML = `
+    <div class="death-panel">
+      <h2>${c.name} has died</h2>
+      <div class="epitaph">Age ${c.age} · ${era.name} · cause: ${c.causeOfDeath}</div>
+      <div class="stat-summary">
+        <div><div class="val">${c.age}</div><div class="lbl">Years Lived</div></div>
+        <div><div class="val">$${totalEstate.toLocaleString()}</div><div class="lbl">Estate</div></div>
+        <div><div class="val">${statLabel}</div><div class="lbl">Defining Trait</div></div>
+        <div><div class="val">${computeBloodlineScore().toLocaleString()}</div><div class="lbl">Bloodline Score</div></div>
+      </div>
+      <p style="color:var(--text-dim);font-size:0.9rem;max-width:480px;margin:0 auto 10px;">
+        Two children carry on the ${escapeHtml(childSurname)} bloodline. Each inherits <strong>$${inheritance.toLocaleString()}</strong>${hasNextEra ? `, growing up in <strong>${nextEra.name}</strong> (${nextEra.years})` : ', continuing the family story here'} — pick who to play next.
+      </p>
+
+      <div class="share-box">
+        <h4>Share this life</h4>
+        <textarea id="share-text" readonly>${escapeHtml(shareText)}</textarea>
+        <div class="btn-row" style="justify-content:center;margin-top:10px;">
+          <button class="btn-secondary" id="copy-share-btn">Copy to Clipboard</button>
+          <button class="btn-secondary" id="download-image-btn">Download Image</button>
+        </div>
+      </div>
+
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn-primary" id="continue-btn-1">Continue as ${escapeHtml(child1Name)} (strong ${STAT_LABEL_MAP[child1Stat]}) →</button>
+        <button class="btn-primary" id="continue-btn-2">Continue as ${escapeHtml(child2Name)} (strong ${STAT_LABEL_MAP[child2Stat]}) →</button>
+      </div>
+      <div class="btn-row" style="justify-content:center;">
+        <button class="btn-secondary" id="view-tree-btn-death">🌳 View Family Tree</button>
+        <button class="btn-secondary" id="view-achievements-btn-death">🏆 Achievements</button>
+        <button class="btn-secondary" id="new-life-btn">Start a New Bloodline</button>
+        <button class="btn-secondary" id="load-save-btn-death">Load a Save…</button>
+        <button class="btn-secondary" id="feedback-btn-death">💬 Feedback</button>
+      </div>
+    </div>`;
+
+  function continueAs(childName, childStat){
+    state.generation += 1;
+    const fullName = `${childName} ${childSurname}`;
+    state.char = newCharacter(nextEraIndex, fullName, {money: inheritance, bonusStat: childStat});
+    trackEvent('life_started', { era: ERAS[nextEraIndex].id });
+    renderGame();
+    cloudAutosave();
+  }
+  document.getElementById('continue-btn-1').onclick = ()=> continueAs(child1Name, child1Stat);
+  document.getElementById('continue-btn-2').onclick = ()=> continueAs(child2Name, child2Stat);
+  document.getElementById('view-tree-btn-death').onclick = openFamilyTree;
+  document.getElementById('view-achievements-btn-death').onclick = openAchievements;
+  document.getElementById('new-life-btn').onclick = ()=>{
+    // Wipes the whole family history (tree, achievements, Bloodline Score) —
+    // confirm first, since there's no autosave to fall back on.
+    if(!confirm('Start a brand new bloodline? This clears your current family history and achievements unless you saved first.')) return;
+    state = {generation:1, familyLog:[], char:null};
+    selectedEra = 0;
+    renderSetup();
+  };
+  document.getElementById('load-save-btn-death').onclick = ()=>{
+    if(confirm('Loading a save will replace your current bloodline history. Continue?')) triggerLoad();
+  };
+  document.getElementById('feedback-btn-death').onclick = openFeedbackModal;
+  document.getElementById('download-image-btn').onclick = ()=>{
+    const btn = document.getElementById('download-image-btn');
+    try{
+      downloadShareImage(c);
+      btn.textContent = 'Downloaded!';
+    } catch(e){
+      btn.textContent = 'Could not generate image';
+    }
+    setTimeout(()=>{ btn.textContent = 'Download Image'; }, 1800);
+  };
+  document.getElementById('copy-share-btn').onclick = async ()=>{
+    const btn = document.getElementById('copy-share-btn');
+    const resetLabel = ()=> setTimeout(()=>{ btn.textContent = 'Copy to Clipboard'; }, 1800);
+    try{
+      await navigator.clipboard.writeText(shareText);
+      btn.textContent = 'Copied!';
+    } catch(e){
+      try{
+        const ta = document.getElementById('share-text');
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        btn.textContent = 'Copied!';
+      } catch(e2){
+        btn.textContent = 'Select the text above to copy';
+      }
+    }
+    resetLabel();
+  };
+}
+
+/* ---------- cloud (optional): identity, autosave, play stats, feedback ----------
+   Everything here degrades to a silent no-op if the backend isn't deployed
+   yet (fetch fails -> caught -> null) or if the player chooses to skip it —
+   the game is fully playable offline either way, this is purely additive. */
+const CLOUD = { playerId: null, authType: null };
+const GOOGLE_CLIENT_ID = (document.querySelector('meta[name="google-signin-client-id"]') || {}).content?.trim() || '';
+
+async function cloudPost(path, body){
+  try{
+    const res = await fetch(`/.netlify/functions/${path}`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body||{}) });
+    if(!res.ok) return null;
+    return await res.json();
+  } catch(e){ return null; }
+}
+async function cloudGet(path){
+  try{
+    const res = await fetch(`/.netlify/functions/${path}`);
+    if(!res.ok) return null;
+    return await res.json();
+  } catch(e){ return null; }
+}
+
+function cloudStatusText(){
+  if(!CLOUD.playerId) return '';
+  return CLOUD.authType === 'google' ? '☁️ Signed in · auto-saving' : '☁️ Guest · auto-saving (this device)';
+}
+
+function trackEvent(event, data){
+  if(!CLOUD.playerId) return;
+  cloudPost('track', { playerId: CLOUD.playerId, event, data });
+}
+
+let autosaveTimer = null;
+function cloudAutosave(){
+  if(!CLOUD.playerId || !state.char) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(()=>{
+    cloudPost('save', { playerId: CLOUD.playerId, state: { format:'bloodline-save', version:1, state } });
+  }, 300);
+}
+
+function ensureIdentity(callback){
+  if(CLOUD.playerId || localStorage.getItem('bloodline_cloud_skipped')){ callback(); return; }
+  showIdentityModal(callback);
+}
+
+function finishIdentity(res, overlay, onDone){
+  overlay.style.display = 'none';
+  if(res && res.playerId){
+    CLOUD.playerId = res.playerId;
+    CLOUD.authType = res.authType;
+    localStorage.setItem('bloodline_playerId', res.playerId);
+    localStorage.setItem('bloodline_authType', res.authType);
+    localStorage.removeItem('bloodline_cloud_skipped');
+    trackEvent('session_start');
+  }
+  if(onDone) onDone();
+}
+
+function showIdentityModal(onDone){
+  const overlay = document.getElementById('cloud-overlay');
+  overlay.innerHTML = `
+    <div class="tree-panel" style="max-width:440px;">
+      <h2 style="margin-top:0;">Save your progress?</h2>
+      <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.55;">
+        Totally optional — manual Save/Load files work no matter what you pick here. This just turns on automatic saving.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:10px;margin:18px 0;">
+        <button class="btn-secondary id-choice-btn" id="id-guest-btn">
+          <strong>Play as Guest</strong>
+          <div class="sub-desc">No sign-in. Auto-saves right here in this browser only — clearing your browser data or switching devices loses it.</div>
+        </button>
+        <div>
+          <div id="google-btn-holder"></div>
+          <div class="sub-desc" style="margin-top:6px;">${GOOGLE_CLIENT_ID ? 'Sign in with Google — auto-saves to your account so your bloodline follows you to any device.' : ''}</div>
+        </div>
+      </div>
+      <button class="id-skip-btn" id="id-skip-btn">Skip — I'll just use manual Save/Load files</button>
+    </div>`;
+  overlay.style.display = 'flex';
+
+  document.getElementById('id-guest-btn').onclick = async ()=>{
+    const res = await cloudPost('identify', {});
+    finishIdentity(res, overlay, onDone);
+  };
+  document.getElementById('id-skip-btn').onclick = ()=>{
+    localStorage.setItem('bloodline_cloud_skipped', '1');
+    overlay.style.display = 'none';
+    if(onDone) onDone();
+  };
+  if(GOOGLE_CLIENT_ID && window.google && google.accounts && google.accounts.id){
+    try{
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (resp)=>{
+          const res = await cloudPost('identify', { googleIdToken: resp.credential });
+          finishIdentity(res, overlay, onDone);
+        },
+      });
+      google.accounts.id.renderButton(document.getElementById('google-btn-holder'), { theme:'outline', size:'large', width:320 });
+    } catch(e){ /* Google script present but not ready — Guest/Skip still work fine. */ }
+  }
+}
+
+function openFeedbackModal(){
+  const overlay = document.getElementById('feedback-overlay');
+  overlay.innerHTML = `
+    <div class="tree-panel" style="max-width:440px;">
+      <button class="tree-close" id="feedback-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">Send Feedback</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;">Found a bug, or have an idea? This goes straight to the developer.</p>
+      <div class="btn-row" style="margin:0 0 12px;">
+        <button class="btn-secondary fb-type-btn selected" id="fb-type-bug" data-type="bug">🐛 Bug</button>
+        <button class="btn-secondary fb-type-btn" id="fb-type-suggestion" data-type="suggestion">💡 Suggestion</button>
+      </div>
+      <textarea id="fb-text" placeholder="What happened, or what would you like to see?"></textarea>
+      <div class="btn-row" style="justify-content:flex-end;margin-top:12px;">
+        <button class="btn-primary" id="fb-submit-btn">Send</button>
+      </div>
+      <div id="fb-status" style="font-size:0.8rem;color:var(--text-dim);margin-top:8px;"></div>
+    </div>`;
+  overlay.style.display = 'flex';
+  let selectedType = 'bug';
+  const bugBtn = document.getElementById('fb-type-bug');
+  const sugBtn = document.getElementById('fb-type-suggestion');
+  bugBtn.onclick = ()=>{ selectedType='bug'; bugBtn.classList.add('selected'); sugBtn.classList.remove('selected'); };
+  sugBtn.onclick = ()=>{ selectedType='suggestion'; sugBtn.classList.add('selected'); bugBtn.classList.remove('selected'); };
+  document.getElementById('feedback-close-btn').onclick = closeFeedbackModal;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeFeedbackModal(); };
+  document.getElementById('fb-submit-btn').onclick = async ()=>{
+    const text = document.getElementById('fb-text').value.trim();
+    const status = document.getElementById('fb-status');
+    if(!text){ status.textContent = 'Type something first.'; return; }
+    if(!CLOUD.playerId){
+      status.textContent = "Feedback needs cloud save turned on (Guest is fine, no email needed) — reload and choose it from the save-progress prompt.";
+      return;
+    }
+    status.textContent = 'Sending…';
+    const c = state.char;
+    const context = c ? { era: ERAS[c.eraIndex].id, age: c.age, bracket: ageBracket(c.age) } : {};
+    const res = await cloudPost('feedback', { playerId: CLOUD.playerId, type: selectedType, text, context });
+    if(res && res.ok){ status.textContent = 'Thanks — sent!'; setTimeout(closeFeedbackModal, 900); }
+    else{ status.textContent = "Couldn't send right now — the feedback backend isn't live yet."; }
+  };
+}
+function closeFeedbackModal(){ document.getElementById('feedback-overlay').style.display = 'none'; }
+
+// On load: if this browser already has an identity, quietly resume it (no
+// modal) and check for a cloud save so the setup screen can offer to
+// continue it. If fetches fail (backend not deployed, offline, etc.) this
+// just leaves the game exactly as it's always worked — local-only.
+async function initCloud(){
+  const storedId = localStorage.getItem('bloodline_playerId');
+  const storedAuth = localStorage.getItem('bloodline_authType');
+  if(!storedId) return;
+  CLOUD.playerId = storedId;
+  CLOUD.authType = storedAuth;
+  trackEvent('session_start');
+  cloudPost('identify', { existingPlayerId: storedId });
+  const res = await cloudGet(`save?playerId=${encodeURIComponent(storedId)}`);
+  if(res && res.state && res.state.state && res.state.state.char){
+    window.__cloudSaveAvailable = res.state;
+    if(!state.char) renderSetup(); // refresh the setup screen with the "Continue" option now that we know
+  }
+}
+
+/* ---------- save / load ---------- */
+function downloadJSON(filename, obj){
+  const blob = new Blob([JSON.stringify(obj, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function saveGame(){
+  if(!state.char) return;
+  const payload = { format:'bloodline-save', version:1, state };
+  const safeName = state.char.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  downloadJSON(`bloodline-save-${safeName}-age${state.char.age}.json`, payload);
+}
+
+function triggerLoad(){ document.getElementById('load-input').click(); }
+
+// Shared by both manual file loads and cloud "Continue Your Saved Game" —
+// same validation, same restore path, one place to keep them in sync.
+function loadStatePayload(payload){
+  if(!payload || payload.format !== 'bloodline-save' || !payload.state || !payload.state.char){
+    alert("That doesn't look like a valid Bloodline save.");
+    return false;
+  }
+  state = payload.state;
+  // keep future relationship ids from colliding with anything in the loaded save
+  let maxId = 0;
+  (state.char.relationships || []).forEach(r=>{
+    const m = /^r(\d+)$/.exec(r.id||'');
+    if(m) maxId = Math.max(maxId, parseInt(m[1],10));
+  });
+  relCounter = maxId + 1;
+  if(state.char.alive){ renderGame(); } else { renderDeath(state.char); }
+  return true;
+}
+
+function handleLoadFile(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const payload = JSON.parse(reader.result);
+      if(!loadStatePayload(payload)) throw new Error('invalid');
+    } catch(e){
+      alert("That doesn't look like a valid Bloodline save file.");
+    }
+  };
+  reader.readAsText(file);
+  evt.target.value = '';
+}
+
+document.getElementById('load-input').addEventListener('change', handleLoadFile);
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeFamilyTree(); closeFeedbackModal(); } });
+
+initCloud();
+renderSetup();
+</script>
+</body>
+</html>
