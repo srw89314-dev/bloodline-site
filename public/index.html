@@ -171,6 +171,41 @@
   .id-skip-btn{ background:transparent; border:none; color:var(--text-dim); font-weight:400; text-decoration:underline; padding:6px; cursor:pointer; font-size:0.8rem; }
   #fb-text{ width:100%; min-height:120px; background:#0f1119; border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:0.88rem; padding:10px; resize:vertical; box-sizing:border-box; }
   .fb-type-btn.selected{ border-color:var(--accent); background:#1c2338; }
+
+  /* challenge seeds */
+  .challenge-banner{ background:#1f1a10; border:1px solid var(--warn); border-radius:10px; padding:14px; margin:14px 0; }
+  .challenge-era-group{ margin-bottom:16px; text-align:left; }
+  .challenge-era-group h4{ margin:0 0 8px; font-size:0.88rem; }
+  .challenge-card{ display:flex; align-items:center; justify-content:space-between; gap:12px; background:#161a26; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+  .challenge-card-body strong{ font-size:0.88rem; }
+  .challenge-card-body p{ margin:4px 0; font-size:0.78rem; color:var(--text-dim); }
+  .challenge-meta{ font-size:0.72rem; color:var(--text-dim); }
+  .challenge-tag{ display:inline-block; background:#1f1a10; border:1px solid var(--warn); border-radius:8px; padding:4px 10px; font-size:0.78rem; margin-bottom:10px; }
+  .stats-teaser{ font-size:0.82rem; color:var(--text-dim); margin:0 0 12px; }
+
+  /* relationship reactions */
+  .reaction-npc-line{ font-style:italic; color:var(--text-dim); margin-top:-6px; }
+
+  /* credit & loans */
+  .credit-section{ margin-top:16px; }
+  .credit-section h4{ margin:0 0 6px; color:var(--text-dim); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; }
+  .loans-list{ font-size:0.78rem; color:var(--text-dim); line-height:1.6; margin-top:4px; }
+
+  /* help & FAQ */
+  .faq-panel{ max-width:640px; max-height:82vh; display:flex; flex-direction:column; }
+  .faq-panel #faq-search-input{ margin:12px 0 10px; flex-shrink:0; }
+  .faq-chip-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; flex-shrink:0; }
+  .faq-chip{ background:#1b2030; color:var(--text-dim); border:1px solid var(--border); border-radius:999px; padding:5px 12px; font-size:0.76rem; cursor:pointer; }
+  .faq-chip.active{ background:var(--accent); color:#0b0d14; border-color:var(--accent); font-weight:600; }
+  .faq-results{ overflow-y:auto; }
+  .faq-category-group{ margin-bottom:16px; }
+  .faq-category-group h4{ margin:0 0 8px; font-size:0.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; }
+  .faq-item{ border-bottom:1px solid var(--border); }
+  .faq-item:last-child{ border-bottom:none; }
+  .faq-question{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--text); font-size:0.88rem; padding:9px 2px; cursor:pointer; }
+  .faq-question:hover{ color:var(--accent); }
+  .faq-answer{ font-size:0.82rem; color:var(--text-dim); line-height:1.55; padding:0 2px 12px 18px; }
+  .faq-empty{ color:var(--text-dim); font-size:0.85rem; padding:12px 2px; }
 </style>
 </head>
 <body>
@@ -186,6 +221,9 @@
   <div id="story-overlay" class="story-overlay"></div>
   <div id="cloud-overlay" class="tree-overlay"></div>
   <div id="feedback-overlay" class="tree-overlay"></div>
+  <div id="challenge-overlay" class="tree-overlay"></div>
+  <div id="reaction-overlay" class="story-overlay"></div>
+  <div id="faq-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
   <footer>Prototype v0.5.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
@@ -203,8 +241,50 @@ const ERAS = [
   { id:'future', name:'The Near Future', years:'2061 – 2090', desc:'AI coworkers, climate strain, and orbital tourism.', moneyRange:[200,3000] },
 ];
 
-const FIRST_NAMES = ['Alex','Jordan','Sam','Riley','Casey','Morgan','Taylor','Jamie','Quinn','Avery','Eli','Nora','Marcus','Della','Otis','June','Frank','Ada','Wyatt','Nova','Grace','Leo','Ruby','Hank'];
-const LAST_NAMES = ['Hartley','Voss','Calloway','Reyes','Whitfield','Nakamura','Okafor','Brennan','Solis','Marsh','Kowalski','Delgado','Finch','Ostrander','Callahan'];
+/* ---------- shareable challenge seeds ----------
+   Fixed starting scenarios (era + starting money + optional stat handicap)
+   instead of the normal random roll. The point is a starting point two
+   different players can both attempt and compare notes on afterward — shared
+   via a plain URL (?challenge=id), not a new backend concept. Three per era,
+   each pushing a different knob: pure poverty, a stat handicap, or both. */
+const CHALLENGES = [
+  { id:'ww_drifter', eraId:'wildwest', name:'Penniless Drifter', tagline:'No stake, no family land — just grit and an empty pocket.', startMoney:0 },
+  { id:'ww_orphan', eraId:'wildwest', name:'Frontier Orphan', tagline:'Raised rough out here with nobody looking out for you.', startMoney:5, minusStat:'happiness' },
+  { id:'ww_greenhorn', eraId:'wildwest', name:'City Greenhorn', tagline:'Book-smart back east, useless out here.', startMoney:20, minusStat:'smarts' },
+
+  { id:'tw_off_the_boat', eraId:'twenties', name:'Off the Boat', tagline:'Just arrived in the city with everything you own on your back.', startMoney:0 },
+  { id:'tw_all_flash', eraId:'twenties', name:'All Flash, No Cash', tagline:'Great wardrobe, empty wallet, and a weak head for numbers.', startMoney:15, minusStat:'smarts' },
+  { id:'tw_marked', eraId:'twenties', name:'Marked', tagline:"Word is out that you crossed the wrong bootlegger.", startMoney:40, minusStat:'happiness' },
+
+  { id:'pw_empty_handed_vet', eraId:'postwar', name:'Empty-Handed Veteran', tagline:'Back from the war with the clothes on your back and little else.', startMoney:0, minusStat:'health' },
+  { id:'pw_outsider', eraId:'postwar', name:'Outsider in the Suburbs', tagline:"Doesn't fit the mold the neighborhood expects.", startMoney:30, minusStat:'happiness' },
+  { id:'pw_factory_kid', eraId:'postwar', name:'Factory Floor Kid', tagline:'Raised on shift work, not schoolbooks.', startMoney:50, minusStat:'smarts' },
+
+  { id:'md_broke_grad', eraId:'modern', name:'Broke Grad', tagline:'A diploma, a mountain of debt, and $0 to show for it.', startMoney:0, minusStat:'happiness' },
+  { id:'md_gig_grind', eraId:'modern', name:'Gig Economy Grind', tagline:'No benefits, no safety net, just the next gig.', startMoney:20, minusStat:'health' },
+  { id:'md_offline', eraId:'modern', name:'Off the Grid', tagline:'No following, no online presence — starting from zero visibility.', startMoney:60, minusStat:'looks' },
+
+  { id:'ft_displaced', eraId:'future', name:'Displaced', tagline:'Climate resettlement left you starting over with nothing.', startMoney:0, minusStat:'happiness' },
+  { id:'ft_unaugmented', eraId:'future', name:'Unaugmented', tagline:"Everyone around you has the upgrades. You don't.", startMoney:50, minusStat:'smarts' },
+  { id:'ft_orbital_debt', eraId:'future', name:'Orbital Debt', tagline:'Bought a ticket to a better life, and now you owe for it.', startMoney:10, minusStat:'health' },
+];
+function challengesByEra(eraId){ return CHALLENGES.filter(ch => ch.eraId === eraId); }
+
+// Era-flavored first-name pools (~30 each, so ~150 total instead of the old
+// flat 24) — loosely matched to what was actually common in each period,
+// the same way "Mildred" reads as 1920s and "Kevin" reads as 1980s. Falls
+// back to the flat FIRST_NAMES union wherever era context isn't available.
+const ERA_FIRST_NAMES = {
+  wildwest: ['Mabel','Cora','Edith','Alma','Bertha','Josephine','Clara','Winifred','Pearl','Lucinda','Ida','Nettie','Hattie','Dolores','Rosa','Mei','Otis','Wyatt','Hank','Silas','Jedediah','Frank','Amos','Clyde','Virgil','Jasper','Eli','Chen','Diego','Miguel'],
+  twenties: ['Mildred','Dorothy','Ruth','Helen','Frances','Evelyn','Gladys','Marion','Vivian','Bernice','Zelda','Josephine','Lucille','Ethel','Beulah','Harold','Clarence','Walter','Herbert','Raymond','Arthur','Milton','Chester','Elmer','Lester','Langston','Duke','Isaiah','Roosevelt','Malachi'],
+  postwar: ['Linda','Deborah','Susan','Karen','Sandra','Sharon','Patricia','Barbara','Carol','Judith','Diane','Janet','Nancy','Betty','Carolyn','Gary','Larry','Dennis','Gerald','Ronald','Wayne','Roger','Dale','Kenneth','Vernon','James','Marvin','Curtis','Yolanda','Gloria'],
+  modern: ['Emma','Olivia','Sophia','Isabella','Ava','Mia','Amara','Zoe','Priya','Fatima','Jasmine','Camila','Layla','Aaliyah','Ethan','Liam','Noah','Mason','Jayden','Elijah','Kai','Malik','Diego','Arjun','Xavier','Hassan','Mateo','Deshawn','Ananya','Chloe'],
+  future: ['Nova','Orion','Zephyr','Indira','Solene','Kairos','Vela','Aster','Lumen','Rin','Anya','Suri','Kian','Jaxon','Kira','Zara','Nyla','Atlas','Corvin','Ilya','Thandiwe','Mika','Sable','Cass','Rhys','Wren','Sol','Enzo','Priya','Amadi'],
+};
+const FIRST_NAMES = Object.values(ERA_FIRST_NAMES).flat();
+function firstNameForEra(eraId){ return pick(ERA_FIRST_NAMES[eraId] || FIRST_NAMES); }
+
+const LAST_NAMES = ['Hartley','Voss','Calloway','Reyes','Whitfield','Nakamura','Okafor','Brennan','Solis','Marsh','Kowalski','Delgado','Finch','Ostrander','Callahan','Ashford','Beaumont','Castellano','Duval','Ellsworth','Fairweather','Giordano','Holloway','Ibarra','Jansen','Kimura','Lindqvist','Mercado','Novak','Osei','Petrov','Quintero','Rutherford','Sato','Thackeray','Ueda','Vasquez','Winslow','Yamamoto','Zamora','Abernathy','Blackwood','Chavez','Dupree','Eastman','Farrow','Grayson','Hendricks','Ilyin','Jaramillo','Kwan','Larsen','Mbeki','Nakashima','Odom','Pemberton','Quiroga','Sandoval','Tran','Underhill'];
 const PET_NAMES = ['Rex','Biscuit','Shadow','Duke','Molly','Pepper','Scout','Daisy','Buddy','Ziggy','Copper','Nova-9'];
 const PET_SPECIES = {
   wildwest:['dog','barn cat','horse'], twenties:['dog','cat'], postwar:['dog','cat','goldfish'],
@@ -240,43 +320,171 @@ const ELITE_JOB_TITLES = {
 };
 const ELITE_JOB_SMARTS_THRESHOLD = 75;
 
+/* ---------- career ladder: raises & second jobs ----------
+   Salary isn't static once you're hired — it grows every year on the job,
+   split into two parts on purpose: a small baseline raise just for staying
+   (tenure), and a performance multiplier tied to smarts so two people in the
+   same job grow at different rates. A second job is real extra income, but
+   it costs something every year it's active (health or happiness, picked at
+   random so it doesn't always hit the same stat) rather than being free
+   money — the tradeoff Sean asked for over a flat income bonus. */
+const TENURE_RAISE_BASE = 0.02;   // baseline raise every year, even at zero tenure
+const TENURE_RAISE_STEP = 0.005;  // additional raise per year of tenure
+const TENURE_RAISE_CAP = 0.08;    // tenure alone can't push the raise past this
+function jobPerformanceMultiplier(c){
+  // 0 smarts -> 0.5x, 50 smarts -> 1.0x, 100 smarts -> 1.5x
+  return 0.5 + (c.stats.smarts||0) / 100;
+}
+function applyJobRaise(c){
+  if(!c.job || c.age < 18) return 0;
+  c.jobTenure = (c.jobTenure||0) + 1;
+  const tenurePct = Math.min(TENURE_RAISE_CAP, TENURE_RAISE_BASE + (c.jobTenure-1) * TENURE_RAISE_STEP);
+  const raise = Math.round(c.salary * tenurePct * jobPerformanceMultiplier(c));
+  c.salary += raise;
+  return raise;
+}
+// Shared by the standard age-18 hire and the age-22 "college athletics
+// didn't work out" fallback, so both paths stay in sync.
+function assignStandardJob(c){
+  const era = ERAS[c.eraIndex];
+  const highSmarts = (c.stats.smarts||0) >= ELITE_JOB_SMARTS_THRESHOLD;
+  const titlePool = highSmarts ? (ELITE_JOB_TITLES[era.id] || JOB_TITLES[era.id]) : JOB_TITLES[era.id];
+  const title = pick(titlePool);
+  c.job = title;
+  c.salary = Math.round(randInt(...era.moneyRange) * (highSmarts ? 0.9 : 0.6) + 20);
+  c.jobTenure = 0;
+  if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
+  addRelationship(c, 'coworker', firstNameForEra(era.id)+' '+pick(LAST_NAMES));
+  return { title, highSmarts };
+}
+const SECOND_JOB_HEALTH_COST = [2,5];
+const SECOND_JOB_HAPPINESS_COST = [2,5];
+function secondJobPenalty(c){
+  if(Math.random() < 0.5) c.stats.health = clamp(c.stats.health - randInt(...SECOND_JOB_HEALTH_COST));
+  else c.stats.happiness = clamp(c.stats.happiness - randInt(...SECOND_JOB_HAPPINESS_COST));
+}
+
 const SHOP_ITEMS = {
   wildwest:[
     {id:'toy_horse', label:'Wooden toy horse', cost:5, minAge:2, effect:{happiness:6}},
     {id:'pocket_knife', label:'Pocket knife', cost:8, minAge:8, effect:{happiness:4, looks:2}},
     {id:'good_boots', label:'Good pair of boots', cost:18, minAge:10, effect:{looks:5, health:3}},
-    {id:'own_horse', label:'A horse of their own', cost:120, minAge:14, effect:{happiness:15, looks:5}},
-    {id:'homestead', label:'A small homestead plot', cost:400, minAge:18, effect:{happiness:22}},
+    {id:'own_horse', label:'A horse of their own', cost:120, minAge:14, effect:{happiness:15, looks:5}, financeable:true, loanType:'vehicle'},
+    {id:'homestead', label:'A small homestead plot', cost:400, minAge:18, effect:{happiness:22}, financeable:true, loanType:'mortgage'},
   ],
   twenties:[
     {id:'toy_train', label:'Tin toy train', cost:4, minAge:2, effect:{happiness:6}},
     {id:'radio_set', label:'Home radio set', cost:25, minAge:8, effect:{happiness:8, smarts:2}},
     {id:'dance_shoes', label:'Sharp dance shoes', cost:15, minAge:13, effect:{looks:6, happiness:4}},
-    {id:'motorcar', label:'A secondhand motorcar', cost:350, minAge:17, effect:{happiness:16, looks:6}},
+    {id:'motorcar', label:'A secondhand motorcar', cost:350, minAge:17, effect:{happiness:16, looks:6}, financeable:true, loanType:'vehicle'},
     {id:'apartment', label:'Lease a city apartment', cost:500, minAge:18, effect:{happiness:20}},
   ],
   postwar:[
     {id:'bicycle', label:'New bicycle', cost:20, minAge:6, effect:{happiness:9, health:3}},
     {id:'record_player', label:'Record player', cost:40, minAge:10, effect:{happiness:7, looks:2}},
     {id:'television', label:'Television set', cost:150, minAge:13, effect:{happiness:10}},
-    {id:'used_car', label:'Used car', cost:900, minAge:17, effect:{happiness:16, looks:5}},
-    {id:'house_downpayment', label:'House down payment', cost:2500, minAge:21, effect:{happiness:25}},
+    {id:'used_car', label:'Used car', cost:900, minAge:17, effect:{happiness:16, looks:5}, financeable:true, loanType:'vehicle'},
+    {id:'house_downpayment', label:'House down payment', cost:2500, minAge:21, effect:{happiness:25}, financeable:true, loanType:'mortgage'},
   ],
   modern:[
     {id:'game_console', label:'Video game console', cost:60, minAge:6, effect:{happiness:10}},
     {id:'smartphone', label:'Smartphone', cost:200, minAge:12, effect:{happiness:9, looks:2}},
     {id:'gaming_pc', label:'Gaming PC', cost:900, minAge:15, effect:{happiness:14, smarts:2}},
-    {id:'used_car_modern', label:'Used car', cost:4500, minAge:17, effect:{happiness:16, looks:4}},
+    {id:'used_car_modern', label:'Used car', cost:4500, minAge:17, effect:{happiness:16, looks:4}, financeable:true, loanType:'vehicle'},
     {id:'apartment_deposit', label:'Apartment security deposit', cost:2000, minAge:20, effect:{happiness:22}},
+    {id:'starter_home', label:'Starter home', cost:18000, minAge:22, effect:{happiness:26}, financeable:true, loanType:'mortgage'},
   ],
   future:[
     {id:'holo_toy', label:'Holo-projector toy', cost:15, minAge:2, effect:{happiness:8}},
     {id:'neural_headset', label:'Neural study headset', cost:250, minAge:10, effect:{smarts:6, happiness:4}},
     {id:'grav_board', label:'Gravity board', cost:600, minAge:14, effect:{happiness:14, looks:4}},
-    {id:'hovercycle', label:'Personal hovercycle', cost:5000, minAge:17, effect:{happiness:18, looks:6}},
+    {id:'hovercycle', label:'Personal hovercycle', cost:5000, minAge:17, effect:{happiness:18, looks:6}, financeable:true, loanType:'vehicle'},
     {id:'orbital_trip', label:'Weekend orbital trip', cost:9000, minAge:20, effect:{happiness:28}},
+    {id:'habitat_pod', label:'Private habitat pod', cost:45000, minAge:22, effect:{happiness:26}, financeable:true, loanType:'mortgage'},
   ],
 };
+
+/* ---------- credit, loans & financing ----------
+   One underlying 300-850 number so the loan math stays simple, but it's
+   never shown as a bare "credit score" outside the eras where that concept
+   actually existed — Modern/Future call it that; earlier eras get the
+   period-honest framing (a banker's opinion of you, not a bureau's). Same
+   number, different name and different available products, the same way
+   the rest of the game varies by era without needing five parallel systems. */
+const CREDIT_LABEL = {
+  wildwest: 'Standing at the Bank',
+  twenties: 'Character Reference',
+  postwar: 'Credit Standing',
+  modern: 'Credit Score',
+  future: 'Trust Rating',
+};
+const STARTING_CREDIT_SCORE = 620; // "fair" — a plausible, unremarkable starting point
+const CREDIT_DENY_THRESHOLD = 500; // below this, lenders won't finance anything
+const LOAN_TERMS = { vehicle: 4, mortgage: 10 }; // in game-years
+function creditRateFor(score){
+  if(score >= 740) return 0.05;
+  if(score >= 670) return 0.08;
+  if(score >= 580) return 0.13;
+  return 0.19;
+}
+function creditTierLabel(score){
+  if(score >= 740) return 'Excellent';
+  if(score >= 670) return 'Good';
+  if(score >= 580) return 'Fair';
+  return 'Poor';
+}
+// Simple level-payment loan: fixed yearly payment across the term at the
+// rate locked in when financed (rate doesn't float with the score later —
+// realistic, and it means an early bad-credit purchase has a lasting,
+// visible cost instead of quietly fixing itself).
+function yearlyLoanPayment(principal, rate, years){
+  if(rate <= 0) return Math.ceil(principal / years);
+  const r = rate;
+  const payment = principal * (r * Math.pow(1+r, years)) / (Math.pow(1+r, years) - 1);
+  return Math.ceil(payment);
+}
+function startLoan(c, item){
+  const downPayment = Math.round(item.cost * 0.2);
+  const principal = item.cost - downPayment;
+  const rate = creditRateFor(c.creditScore);
+  const years = LOAN_TERMS[item.loanType] || 5;
+  const payment = yearlyLoanPayment(principal, rate, years);
+  c.money -= downPayment;
+  c.loans.push({
+    id:'loan_'+item.id+'_'+(c.loans.length), itemId:item.id, itemLabel:item.label, type:item.loanType,
+    principal, balance:principal, rate, years, yearsPaid:0, payment,
+  });
+  c.owned.push(item.id);
+  applyEffectSpec(c, item.effect, null);
+}
+// Runs once per completed year — collects the year's payment on every active
+// loan, or logs a missed payment if the money isn't there. Deliberately
+// simple (no grace period, no partial payments) so the consequence of
+// financing more than you can afford stays visible and immediate.
+function processLoans(c){
+  if(!c.loans || !c.loans.length) return;
+  c.loans.forEach(loan=>{
+    if(loan.balance <= 0) return;
+    if(c.money >= loan.payment){
+      c.money -= loan.payment;
+      loan.balance = Math.max(0, loan.balance - (loan.payment - Math.round(loan.balance * loan.rate)));
+      // Interest-then-principal above can undershoot on the final year's
+      // rounding; force it closed once yearsPaid hits the term either way.
+      loan.yearsPaid += 1;
+      if(loan.yearsPaid >= loan.years) loan.balance = 0;
+      c.creditScore = clamp850(c.creditScore + randInt(2,5));
+      if(loan.balance <= 0){
+        logEvent(c, `${firstName(c.name)} made the final payment on ${loan.itemLabel.toLowerCase()} — paid off free and clear.`, 'good');
+      }
+    } else {
+      c.creditScore = clamp850(c.creditScore - randInt(15,30));
+      logEvent(c, `${firstName(c.name)} missed a payment on ${loan.itemLabel.toLowerCase()} — ${CREDIT_LABEL[ERAS[c.eraIndex].id]} took a hit.`, 'bad');
+    }
+  });
+  c.loans = c.loans.filter(loan => loan.balance > 0);
+}
+function clamp850(v){ return Math.max(300, Math.min(850, v)); }
+function outstandingDebt(c){ return (c.loans||[]).reduce((sum,l)=>sum+(l.balance||0), 0); }
 
 /* ---------- utils ---------- */
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
@@ -326,10 +534,10 @@ function relByRole(c, role){ return relsByRole(c, role)[0]; }
 
 function makeFamily(eraId, surname){
   const rels = [];
-  rels.push({role:'mother', name: pick(FIRST_NAMES)+' '+surname});
-  rels.push({role:'father', name: pick(FIRST_NAMES)+' '+surname});
+  rels.push({role:'mother', name: firstNameForEra(eraId)+' '+surname});
+  rels.push({role:'father', name: firstNameForEra(eraId)+' '+surname});
   const numSiblings = randInt(0,2);
-  for(let i=0;i<numSiblings;i++) rels.push({role:'sibling', name: pick(FIRST_NAMES)+' '+surname});
+  for(let i=0;i<numSiblings;i++) rels.push({role:'sibling', name: firstNameForEra(eraId)+' '+surname});
   const species = pick(PET_SPECIES[eraId]);
   rels.push({role:'pet', name: pick(PET_NAMES), species});
   return { rels };
@@ -554,6 +762,14 @@ const BRACKET_ACTIONS = {
     {id:'ask_raise', label:'Ask for a raise', category:'Work',
      texts:["{name} made the case and got a bump in pay.","It didn't go anywhere this time, but {name} made an impression."],
      effect:{money:[20,60], happiness:[-2,5]}, requiresJob:true},
+    {id:'second_job', label:'Take on a second job', category:'Work', special:'second_job', texts:[], effect:{}},
+    {id:'quit_second_job', label:'Quit the second job', category:'Work', special:'quit_second_job', texts:[], effect:{}},
+    {id:'college_athletics', label:'Train and compete for the team', category:'Activities', requiresSportsStage:'college',
+     texts:["{name} put in the work at practice.","{name} had a strong showing this season."],
+     effect:{health:[6,10], happiness:[4,7]}},
+    {id:'pro_athletics', label:'Train and compete professionally', category:'Activities', requiresSportsStage:'pro',
+     texts:["{name} put in the work at practice.","{name} had a strong showing this season."],
+     effect:{health:[4,8], happiness:[3,6]}},
     {id:'side_hustle_a', label:'Pick up a side hustle', category:'Money',
      texts:["The side gig brought in solid extra cash.","{name} is getting good at balancing two things at once."],
      effect:{money:[25,70], health:[-2,0]}},
@@ -811,6 +1027,46 @@ const MINI_STORIES = [
       { label:'Let it stay buried', effect:{happiness:[1,3]}, cls:'', result:"{name} decided some things are better left alone." },
     ],
   },
+  {
+    id:'mentor_offer', brackets:['teen','adult'],
+    prompt:"A respected figure {name} looks up to offers to mentor them directly — a real opportunity, but it'll eat up a lot of free time.",
+    choices:[
+      { label:'Take the mentorship', effect:{smarts:[3,6], happiness:[-2,2]}, cls:'good', result:"{name} took the mentorship. Slower weekends, but a real leap forward." },
+      { label:'Pass — enjoy the free time', effect:{happiness:[2,4]}, cls:'', result:"{name} passed. No regrets, exactly, but they wonder sometimes." },
+    ],
+  },
+  {
+    id:'neighbor_dispute', brackets:['adult','senior'],
+    prompt:"A dispute with a neighbor over noise and a property line has been simmering for weeks.",
+    choices:[
+      { label:'Talk it out calmly', effect:{happiness:[3,6]}, cls:'good', result:"{name} knocked on the door and talked it through. Awkward at first, fine after." },
+      { label:'Let it escalate', effect:{happiness:[-4,1]}, cls:'bad', result:"{name} let it slide into a real feud. Exhausting, and it didn't fix anything." },
+    ],
+  },
+  {
+    id:'lost_pet', brackets:['kid','teen','adult'],
+    prompt:"{name} finds a clearly loved but lost pet wandering alone, no collar in sight.",
+    choices:[
+      { label:'Try to track down the owner', effect:{happiness:[3,6]}, cls:'good', result:"{name} spent a few days tracking down the owner, who was overjoyed to get them back." },
+      { label:'Keep it', effect:{happiness:[4,7], money:[-10,-2]}, cls:'', result:"{name} decided to keep it. Feeding a new pet isn't free, but it was worth it." },
+    ],
+  },
+  {
+    id:'creative_spark', brackets:['kid','teen','adult'],
+    prompt:"{name} gets hit with a genuine burst of inspiration for a personal project, out of nowhere.",
+    choices:[
+      { label:'Chase it', effect:{imagination:[4,8], happiness:[2,5]}, cls:'good', result:"{name} chased the idea for hours and actually finished something they're proud of." },
+      { label:'Let it pass', effect:{happiness:[-1,1]}, cls:'', result:"{name} let it pass. There's always tomorrow, probably." },
+    ],
+  },
+  {
+    id:'public_speaking_chance', brackets:['teen','adult'],
+    prompt:"{name} gets asked, with almost no notice, to speak in front of a real crowd.",
+    choices:[
+      { label:'Take the spotlight', effect:{looks:[1,3], smarts:[2,4], happiness:[-2,4]}, cls:'', result:"{name} took it. Nerve-wracking, but it went better than expected." },
+      { label:'Pass it to someone else', effect:{happiness:[1,3]}, cls:'', result:"{name} passed it off, relieved, and watched from the crowd instead." },
+    ],
+  },
 ];
 // Era-specific one-off storylines — same blocking-choice mechanic as the
 // generic MINI_STORIES above, but flavored to a single era instead of
@@ -824,6 +1080,12 @@ const ERA_MINI_STORIES = {
         { label:'Side with the smaller ranch', effect:{happiness:[3,6]}, cls:'good', result:"{name} sided with the underdog. Made a loyal friend and a lasting enemy in the same afternoon." },
         { label:'Stay neutral', effect:{happiness:[-2,2]}, cls:'', result:"{name} stayed out of it, and both sides quietly resented the fence-sitting." },
       ] },
+    { id:'gold_tip', brackets:['teen','adult'],
+      prompt:"A weathered prospector passing through swears he knows exactly where an unclaimed gold vein sits — and he'll split the location for a cut up front.",
+      choices:[
+        { label:'Pay for the tip and go looking', effect:{money:[-30,150]}, imaginationScaled:true, cls:'', result:"{name} paid up and went looking." },
+        { label:"Keep working the land you've got", effect:{happiness:[1,3]}, cls:'good', result:"{name} stayed put. Slower, but steady beats a stranger's story." },
+      ] },
   ],
   twenties: [
     { id:'bootleg_favor', brackets:['teen','adult'],
@@ -831,6 +1093,12 @@ const ERA_MINI_STORIES = {
       choices:[
         { label:'Do the favor', effect:{money:[40,90], happiness:[-3,3]}, cls:'', result:"{name} did the favor. Good money, and a nagging feeling about what was actually in that package." },
         { label:'Turn it down', effect:{happiness:[1,3]}, cls:'good', result:"{name} said no. Safer, and a lot easier to sleep at night." },
+      ] },
+    { id:'speakeasy_invite', brackets:['teen','adult'],
+      prompt:"A well-connected friend slips {name} the password to a hidden speakeasy nobody's supposed to know about.",
+      choices:[
+        { label:'Go all in on the nightlife', effect:{happiness:[4,8], money:[-15,5]}, cls:'', result:"{name} had a genuinely great night, cover charge and all." },
+        { label:'Keep a respectable distance', effect:{happiness:[1,3]}, cls:'good', result:"{name} politely declined. No trouble, no story to tell either." },
       ] },
   ],
   postwar: [
@@ -840,6 +1108,12 @@ const ERA_MINI_STORIES = {
         { label:'Sign it', effect:{happiness:[3,6], money:[-10,10]}, cls:'good', result:"{name} signed. Management noticed exactly who did." },
         { label:'Stay out of it', effect:{happiness:[-2,2]}, cls:'', result:"{name} kept their head down and let others fight it out." },
       ] },
+    { id:'suburb_committee', brackets:['adult','senior'],
+      prompt:"The neighborhood committee asks {name} to help organize the block's summer get-together — real work, but a chance to matter locally.",
+      choices:[
+        { label:'Get involved', effect:{happiness:[3,6]}, cls:'good', result:"{name} got involved, and the block party actually came together nicely." },
+        { label:'Stay out of local politics', effect:{happiness:[-1,2]}, cls:'', result:"{name} passed on it and let the committee sort it out." },
+      ] },
   ],
   modern: [
     { id:'gig_spiral', brackets:['teen','adult'],
@@ -848,6 +1122,12 @@ const ERA_MINI_STORIES = {
         { label:'Chase the bonus', effect:{money:[20,60], health:[-6,-2], happiness:[-3,1]}, cls:'', result:"{name} chased the bonus and earned it, running on fumes by the end of the night." },
         { label:'Log off for the day', effect:{happiness:[3,6]}, cls:'good', result:"{name} logged off. The bonus wasn't worth it." },
       ] },
+    { id:'viral_moment', brackets:['teen','adult'],
+      prompt:"Something {name} posted online unexpectedly blows up overnight, and now everyone's watching for what comes next.",
+      choices:[
+        { label:'Lean into the attention', effect:{happiness:[3,6], money:[10,40]}, cls:'', result:"{name} leaned in and rode the wave — fun, if a little overwhelming." },
+        { label:'Keep it low-key', effect:{happiness:[1,3]}, cls:'good', result:"{name} let it die down on its own and got back to normal life." },
+      ] },
   ],
   future: [
     { id:'ai_dilemma', brackets:['adult','senior'],
@@ -855,6 +1135,12 @@ const ERA_MINI_STORIES = {
       choices:[
         { label:'Report it', effect:{happiness:[2,5], money:[-10,10]}, cls:'good', result:"{name} reported it. The team grumbled, but nothing went wrong later." },
         { label:'Let it slide', effect:{money:[10,30], happiness:[-3,2]}, cls:'', result:"{name} let it slide. The deadline was met, and {name} tried not to think about it again." },
+      ] },
+    { id:'neural_upgrade_offer', brackets:['adult'],
+      prompt:"{name}'s employer offers a free elective neural upgrade — a real productivity boost, with a recovery period and some unknowns.",
+      choices:[
+        { label:'Get the upgrade', effect:{smarts:[3,6], health:[-3,3]}, cls:'', result:"{name} got the upgrade. The recovery week was rough, but the difference after was real." },
+        { label:'Pass on it', effect:{happiness:[1,3]}, cls:'good', result:"{name} passed. Not every edge is worth chasing." },
       ] },
   ],
 };
@@ -895,6 +1181,127 @@ function openStoryModal(c, story, onDone){
   });
 }
 
+/* ---------- relationship reactions ----------
+   The mini-storyline mechanic above is generic ("a stranger asks for
+   help"); this is the specific-to-your-cast version: someone you actually
+   have a relationship with reacts to how things have been going, in their
+   own voice, and you pick how to respond (A–D, realistically varied — take
+   it well, push back, deflect, shut down). Same blocking-choice UI, same
+   "stands in for the year's event" rule as mini-stories, just scoped to an
+   actual named relationship instead of a generic NPC. */
+const REACTION_BRACKETS = STORY_BRACKETS; // same life stages mini-stories fire in
+const REACTION_CHANCE = 0.05;
+const REACTION_MOMENTS = [
+  { id:'missed_plans', roles:['partner','bestfriend','friend'], brackets:['teen','adult','senior'],
+    setup:"{name} bails on plans with {target} at the last minute.",
+    npcReaction:"{target} doesn't hide the disappointment: \"I get it, but this keeps happening.\"",
+    choices:[
+      { label:'Apologize sincerely and follow through next time', effect:{closeness:[4,7], happiness:[-1,2]}, cls:'good', result:"{name} apologized and meant it. {target} appreciated it." },
+      { label:'Get defensive', effect:{closeness:[-6,-3], happiness:[-2,1]}, cls:'bad', result:"{name} got defensive about it. That didn't go well." },
+      { label:'Laugh it off', effect:{closeness:[-1,2], happiness:[1,3]}, cls:'', result:"{name} laughed it off. {target} let it go, this time." },
+      { label:'Say nothing, change the subject', effect:{closeness:[-3,-1]}, cls:'', result:"{name} said nothing. The moment passed, unresolved." },
+    ] },
+  { id:'money_ask', roles:['sibling','bestfriend','friend'], brackets:['teen','adult','senior'],
+    setup:"{target} asks {name} to borrow some money — no clear plan for paying it back.",
+    npcReaction:"\"I wouldn't ask if I didn't need it,\" {target} says.",
+    choices:[
+      { label:'Lend it, no strings attached', effect:{closeness:[5,8], money:[-40,-15]}, cls:'good', result:"{name} lent it without making it a thing. {target} was grateful." },
+      { label:"Lend it, but ask for a plan to pay it back", effect:{closeness:[1,4], money:[-40,-15]}, cls:'', result:"{name} lent it on the condition of a payback plan. A little awkward, but fair." },
+      { label:'Say no, kindly', effect:{closeness:[-3,0]}, cls:'', result:"{name} said no as gently as possible." },
+      { label:"Say no, and it gets awkward", effect:{closeness:[-6,-3]}, cls:'bad', result:"{name} said no. It got tense fast." },
+    ] },
+  { id:'big_news', roles:['mother','father','partner'], brackets:['kid','teen','adult','senior'],
+    setup:"{target} pulls {name} aside with big news that changes things.",
+    npcReaction:"\"I wanted you to hear it from me first,\" {target} says, watching for a reaction.",
+    choices:[
+      { label:'React with excitement and support', effect:{closeness:[4,7], happiness:[2,5]}, cls:'good', result:"{name} was genuinely happy for {target}, and it showed." },
+      { label:'React with worry about what it means', effect:{closeness:[-2,1], happiness:[-2,1]}, cls:'', result:"{name} couldn't hide the worry. {target} noticed." },
+      { label:'Ask a lot of practical questions', effect:{closeness:[0,3], smarts:[1,2]}, cls:'', result:"{name} wanted the details straight. {target} appreciated the practicality, mostly." },
+      { label:'Say you need a little space before responding', effect:{closeness:[-3,0]}, cls:'', result:"{name} asked for a beat before reacting. {target} understood, sort of." },
+    ] },
+  { id:'career_feedback', roles:['boss','coworker'], brackets:['teen','adult'],
+    setup:"{target} pulls {name} aside with blunt feedback about work.",
+    npcReaction:"\"I'm telling you this because I think you can do better,\" {target} says.",
+    choices:[
+      { label:'Take it well and adjust', effect:{closeness:[3,6], smarts:[1,3]}, cls:'good', result:"{name} took it in stride and actually changed something." },
+      { label:'Push back, respectfully', effect:{closeness:[0,2], happiness:[1,2]}, cls:'', result:"{name} pushed back but kept it professional." },
+      { label:'Get defensive', effect:{closeness:[-5,-2], happiness:[-2,1]}, cls:'bad', result:"{name} got defensive. Not a great look." },
+      { label:'Shut down and say little', effect:{closeness:[-2,0], happiness:[-1,1]}, cls:'', result:"{name} went quiet and let it sit there." },
+    ] },
+  { id:'jealousy', roles:['partner'], brackets:['teen','adult','senior'],
+    setup:"{target} brings up feeling insecure about how much time {name} has been spending with someone else lately.",
+    npcReaction:"\"I'm not trying to control you,\" {target} says, \"I just miss you.\"",
+    choices:[
+      { label:'Reassure them and make more time', effect:{closeness:[5,8], happiness:[1,3]}, cls:'good', result:"{name} reassured {target} and actually followed through." },
+      { label:'Explain your side calmly', effect:{closeness:[1,4]}, cls:'', result:"{name} explained calmly. {target} heard it, mostly." },
+      { label:'Get frustrated they brought it up', effect:{closeness:[-6,-3], happiness:[-2,1]}, cls:'bad', result:"{name} got frustrated. That made it worse." },
+      { label:'Brush it off', effect:{closeness:[-3,-1]}, cls:'', result:"{name} brushed it off. {target} didn't bring it up again — but didn't forget either." },
+    ] },
+  { id:'sibling_credit', roles:['sibling'], brackets:['kid','teen','adult'],
+    setup:"{target} calls {name} out for always getting more attention.",
+    npcReaction:"\"You don't even notice, do you?\" {target} says.",
+    choices:[
+      { label:'Really listen and acknowledge it', effect:{closeness:[4,7], happiness:[-1,1]}, cls:'good', result:"{name} actually listened. {target} didn't expect that." },
+      { label:"Explain you didn't mean to", effect:{closeness:[1,3]}, cls:'', result:"{name} explained it wasn't intentional. Fair enough, mostly." },
+      { label:'Get defensive and list your own struggles', effect:{closeness:[-5,-2]}, cls:'bad', result:"{name} turned it around. {target} didn't appreciate that." },
+      { label:'Dismiss it as dramatics', effect:{closeness:[-6,-3], happiness:[1,2]}, cls:'bad', result:"{name} brushed it off as nothing. {target} clearly disagreed." },
+    ] },
+  { id:'proud_moment', roles:['mother','father','bestfriend','partner'], brackets:['kid','teen','adult','senior'],
+    setup:"{target} shows up to something that matters to {name}, visibly proud.",
+    npcReaction:"\"I wouldn't have missed this,\" {target} says.",
+    choices:[
+      { label:'Let them know how much it means', effect:{closeness:[5,8], happiness:[3,5]}, cls:'good', result:"{name} said it out loud, and {target} lit up." },
+      { label:'Keep it light, a little embarrassed', effect:{closeness:[1,3], happiness:[1,2]}, cls:'', result:"{name} kept it light. Still a good moment." },
+      { label:'Downplay the moment entirely', effect:{closeness:[-2,1]}, cls:'', result:"{name} brushed past it. {target} noticed." },
+      { label:'Stay distracted, barely acknowledge it', effect:{closeness:[-4,-1], happiness:[-1,1]}, cls:'bad', result:"{name} was somewhere else mentally. {target} felt it." },
+    ] },
+  { id:'friend_moving', roles:['bestfriend','friend'], brackets:['teen','adult'],
+    setup:"{target} tells {name} they're moving away for a big opportunity.",
+    npcReaction:"\"I wanted you to be the first to know,\" {target} says, watching how {name} takes it.",
+    choices:[
+      { label:'Be genuinely happy for them', effect:{closeness:[4,7], happiness:[1,3]}, cls:'good', result:"{name} was genuinely happy for {target}, even knowing what it meant." },
+      { label:"Admit it's going to be hard", effect:{closeness:[3,6], happiness:[-2,1]}, cls:'', result:"{name} was honest that it would be hard. {target} respected that." },
+      { label:"Go quiet, hard to hide the disappointment", effect:{closeness:[-1,2], happiness:[-3,0]}, cls:'', result:"{name} couldn't quite hide it. {target} noticed the quiet." },
+      { label:'Change the subject', effect:{closeness:[-4,-1]}, cls:'', result:"{name} changed the subject. {target} let it drop." },
+    ] },
+];
+function reactionMomentsFor(c, bracket){
+  return REACTION_MOMENTS.filter(m => (!m.brackets || m.brackets.includes(bracket)) && m.roles.some(role => relsByRole(c, role).length));
+}
+function pickReactionForCharacter(c, bracket){
+  const eligible = reactionMomentsFor(c, bracket);
+  if(!eligible.length) return null;
+  const moment = pick(eligible);
+  const eligibleRels = c.relationships.filter(r => r.active && moment.roles.includes(r.role));
+  const rel = pick(eligibleRels);
+  if(!rel) return null;
+  return { moment, rel };
+}
+function openReactionModal(c, moment, rel, onDone){
+  const overlay = document.getElementById('reaction-overlay');
+  overlay.innerHTML = `
+    <div class="story-panel">
+      <h2 style="margin-top:0;">💬 A Moment With ${escapeHtml(displayName(rel))}</h2>
+      <p class="story-prompt">${fill(moment.setup, c, rel)}</p>
+      <p class="reaction-npc-line">${fill(moment.npcReaction, c, rel)}</p>
+      <div class="story-choices">
+        ${moment.choices.map((ch, idx) => `<button class="btn-secondary story-choice-btn" data-idx="${idx}">${escapeHtml(ch.label)}</button>`).join('')}
+      </div>
+    </div>`;
+  overlay.style.display = 'flex';
+  overlay.querySelectorAll('.story-choice-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const idx = parseInt(btn.dataset.idx, 10);
+      const choice = moment.choices[idx];
+      const deltas = applyEffectSpec(c, choice.effect || {}, rel);
+      logEvent(c, fill(choice.result, c, rel), choice.cls || eventClassFromDeltas(deltas));
+      overlay.style.display = 'none';
+      overlay.innerHTML = '';
+      onDone();
+    };
+  });
+}
+
 /* ---------- cumulative Bloodline Score ---------- */
 // A blended number across the whole family line (wealth + longevity +
 // achievements) — a personal record to try to beat on the next attempt,
@@ -905,11 +1312,13 @@ function computeBloodlineScore(){
   // Only add state.char separately while alive — once dead, killCharacter()
   // has already recorded them in familyLog, so this avoids double-counting
   // the same life (same dedup rule as buildTreeChain above).
-  if(state.char && state.char.alive) lives.push({ money: (state.char.money||0), savings: (state.char.savings||0), age: state.char.age });
+  if(state.char && state.char.alive) lives.push({ money: (state.char.money||0), savings: (state.char.savings||0), debt: outstandingDebt(state.char), age: state.char.age });
   lives.forEach(f=>{
-    // Net worth = cash + savings — a life that built up savings shouldn't
-    // score lower than one that kept the same amount as loose cash.
-    score += Math.round(((f.money||0) + (f.savings||0)) / 100);
+    // Net worth = cash + savings minus any outstanding loan balance — a life
+    // that built up savings shouldn't score lower than one that kept the
+    // same amount as loose cash, and a life carrying debt shouldn't score
+    // as if that debt weren't owed.
+    score += Math.round(((f.money||0) + (f.savings||0) - (f.debt||0)) / 100);
     score += (f.age||0) * 3;
   });
   score += (state.achievementsUnlocked ? state.achievementsUnlocked.length : 0) * 25;
@@ -949,6 +1358,230 @@ function checkAchievements(){
   });
   return newlyUnlocked;
 }
+
+/* ---------- Help & FAQ ----------
+   Static content + a client-side search/filter — no backend, no build step,
+   just a plain array filtered in the browser. Categories double as filter
+   chips; search matches against question, answer, and tags together so a
+   player can find an entry with "credit score" or "loan" or "bank" equally
+   well. Kept deliberately player-facing only — nothing here mentions the
+   admin dashboard or anything dev-only. */
+const FAQ_ENTRIES = [
+  // --- Basics ---
+  { id:'what-is', category:'Basics', q:"What is Bloodline?",
+    a:"Bloodline is a browser life simulator spanning five historical eras — The Wild West, The Roaring Twenties, The Postwar Boom, Modern Day, and The Near Future. You play one character's whole life, year by year, then when they die you continue the story as one of their children in the next era. Your choices carry forward: money, stats, and reputation all echo into the next generation.",
+    tags:['overview','intro','about'] },
+  { id:'turns', category:'Basics', q:"What's the difference between the 6-month and 1-year buttons?",
+    a:"Advancing 6 months is a lighter check-in: a small chance of a random event and a fresh set of actions, but no salary payment, no aging milestone, and no yearly story rolls. Advancing a full year (either directly, or via two 6-month steps) ages your character up, pays any salary and loan payments due, and rolls for mini-storylines, relationship reactions, and world events.",
+    tags:['time','advance','skip','months','year'] },
+  { id:'aging-death', category:'Basics', q:"How does aging and death work?",
+    a:"Every year past 60 carries a small, growing chance of death, and health below 25 adds further risk on top of that. Health hitting 0 always ends the life immediately, regardless of age. There's no way to see the exact odds in-game — health and age are the two levers that matter most.",
+    tags:['die','dying','risk','health'] },
+  { id:'next-gen', category:'Basics', q:"What happens when my character dies?",
+    a:"You'll be offered a choice between two of your children to continue as — each inherits a portion of your estate and one boosted stat. The new generation automatically starts in the next era in the sequence, so if you die in the Wild West, your child starts life in the Roaring Twenties. Whatever's left of your estate becomes the starting cash for whichever child you pick.",
+    tags:['children','heir','continue','inheritance'] },
+  { id:'eras-order', category:'Basics', q:"Can I pick which era my next generation starts in?",
+    a:"No — the timeline always advances to the next era in order (Wild West → Twenties → Postwar → Modern → Future). If you're already in the last era, later generations stay there. If you want to play a different era, start a brand-new bloodline instead of continuing the current one.",
+    tags:['era','choose','pick','timeline'] },
+  { id:'stats-meaning', category:'Basics', q:"What do the five stats actually affect?",
+    a:"Health drives your death odds later in life. Happiness mostly reflects how your life feels and factors into some outcomes. Smarts gates smarter/elite job offers at 18 and unlocks higher-tier actions and story branches. Looks feeds mostly into relationship and social flavor. Imagination unlocks creative actions and mini-stories (passion projects, memoirs) as it climbs.",
+    tags:['health','happiness','smarts','looks','imagination','stat'] },
+  { id:'action-caps', category:'Basics', q:"Why can I only do some actions once a year, but others up to 5 times?",
+    a:"Actions in the School, Activities, and Growth categories (the ones tied to skill-building) can be repeated up to 5 times in a single year. Everything else — jobs, shopping, social actions — can only be taken once per year, since it represents a single meaningful choice rather than repeated practice.",
+    tags:['limit','cap','repeat','actions per year'] },
+  { id:'infant-actions', category:'Basics', q:"My character is a baby — why are there so few things to do?",
+    a:"Infants and toddlers get their own small set of age-appropriate actions (tummy time, exploring the backyard, and similar) plus whatever relationship actions apply. It's intentionally light — the real decision-making opens up once your character starts school.",
+    tags:['baby','toddler','infant'] },
+
+  // --- Jobs & Careers ---
+  { id:'first-job', category:'Jobs & Careers', q:"How do I get my first job?",
+    a:"You're automatically hired the year you turn 18 (unless you're on a college sports track — see Sports & Activities). If your Smarts were built up to 75 or higher by then, you're offered a pick from the era's elite job pool instead of the standard one, with noticeably higher pay.",
+    tags:['career','hired','work','18'] },
+  { id:'teen-job', category:'Jobs & Careers', q:"Can I work before I'm an adult?",
+    a:"Yes — teenagers age 14+ can take the \"Get a part-time job\" action for a lower-paying part-time gig, on top of whatever else they're doing.",
+    tags:['part-time','teen','teenager'] },
+  { id:'raises', category:'Jobs & Careers', q:"How do raises work?",
+    a:"Every year you're employed, your salary grows automatically: a small baseline raise just for staying in the job (it grows the longer you stay, capping at 8%), multiplied by a performance factor tied to your Smarts — higher Smarts means faster raises. You can also ask for a one-off raise as a separate yearly action.",
+    tags:['salary','pay','raise','tenure','performance'] },
+  { id:'second-job', category:'Jobs & Careers', q:"Should I take on a second job?",
+    a:"It's extra income, but not free — every year you're working two jobs, it costs you either Health or Happiness (picked at random, never both at once). It's a real tradeoff, not a strict upgrade. You can quit the second job any year you want to stop paying that cost.",
+    tags:['two jobs','second job','side job'] },
+  { id:'elite-jobs', category:'Jobs & Careers', q:"What's the difference between a normal job and an elite job?",
+    a:"Elite jobs (doctor- and attorney-type roles, era-appropriate) only show up as an option at 18 if your Smarts are 75 or higher by then. They pay noticeably more than the standard job pool for that era.",
+    tags:['elite','smarts','career'] },
+  { id:'retirement', category:'Jobs & Careers', q:"What happens at retirement?",
+    a:"At 65, if you still have a job, your character automatically retires — the job ends, and so does any second job you're working.",
+    tags:['retire','65','pension'] },
+
+  // --- Sports & Activities ---
+  { id:'sports-ladder', category:'Sports & Activities', q:"How does the sports ladder work?",
+    a:"Practicing a sports action as a kid or teen (Join a sports team, Join a varsity sport) starts you on a ladder: School (JV → Varsity → Captain). If you've reached at least Varsity by 18, you continue into College (Varsity → All-Conference → All-American) instead of taking a normal job. If you reach All-American by 22, you go Pro (Rookie → Starter → All-Star → MVP → Hall of Fame) — and being a pro athlete becomes your actual job, with pay that scales way up by tier.",
+    tags:['sports','varsity','college','pro athlete','jv'] },
+  { id:'sports-fallback', category:'Sports & Activities', q:"What happens if I don't make it far enough in the sports ladder?",
+    a:"If you fall short of Varsity by 18, the ladder ends there and you take a normal job like anyone else. Same at 22 if you don't reach All-American in college — you take a standard job then instead, four years later than everyone else since you were busy competing.",
+    tags:['sports','fail','fallback'] },
+  { id:'sports-pay', category:'Sports & Activities', q:"Is going pro actually worth it financially?",
+    a:"At the higher tiers, yes — it's the single best-paying path in the game. A Hall of Fame pro athlete earns about 12 times the era's average salary. Rookie tier is much more modest, closer to a normal job, so the payoff really shows up if you keep training and climbing tiers.",
+    tags:['pro athlete','salary','hall of fame'] },
+  { id:'other-skills', category:'Sports & Activities', q:"What about martial arts, academics, and arts?",
+    a:"Those three have their own simpler tier ladders (for example, martial arts runs White Belt through Black Belt) based purely on how many times you've practiced that skill — no stage gating like sports has. They don't feed into your job the way the sports ladder can.",
+    tags:['martial arts','belt','academic','arts','skills'] },
+
+  // --- Money, Credit & Loans ---
+  { id:'credit-score', category:'Money, Credit & Loans', q:"What is my credit score / Standing at the Bank / Credit Standing?",
+    a:"It's the same underlying 300-850 number in every era, just labeled to fit the period — \"Standing at the Bank\" in the Wild West, \"Credit Score\" in Modern Day, and so on. You start at 620 (a \"Fair\" rating) the year you turn 18, and it moves based on how you handle any loans you take out.",
+    tags:['credit','bank','standing','rating'] },
+  { id:'financing', category:'Money, Credit & Loans', q:"How do I finance something instead of buying it outright?",
+    a:"Certain shop items (vehicles, homes, and similar big purchases) show a \"Finance\" option once you're 18+ with a credit score of at least 500. Financing takes a 20% down payment up front, and the rest becomes a loan you pay off over several years at a rate set by your credit score at the time.",
+    tags:['finance','loan','mortgage','vehicle','buy'] },
+  { id:'loan-rates', category:'Money, Credit & Loans', q:"How does my credit score affect loan rates?",
+    a:"Better credit gets a better rate: Excellent (740+) locks in 5%, Good (670-739) gets 8%, Fair (580-669) gets 13%, and Poor (below 580) gets 19%. The rate is locked in when you take the loan — it doesn't change later even if your score does.",
+    tags:['interest','rate','apr'] },
+  { id:'missed-payment', category:'Money, Credit & Loans', q:"What happens if I miss a loan payment?",
+    a:"If you don't have enough cash on hand when a payment comes due, you miss it — no partial payments. That drops your credit score by 15-30 points. Paying on time, by contrast, raises your score by a smaller 2-5 points each year.",
+    tags:['missed payment','default','late'] },
+  { id:'loan-terms', category:'Money, Credit & Loans', q:"How long do loans last?",
+    a:"Vehicle loans run 4 years; mortgages (homes) run 10 years. The loan is automatically paid off in full once you've made that many years of payments.",
+    tags:['term','years','mortgage','vehicle loan'] },
+  { id:'debt-networth', category:'Money, Credit & Loans', q:"Does owing money on a loan affect my net worth or score?",
+    a:"Yes — any outstanding loan balance is subtracted everywhere your money is totaled or scored: the death screen, the family tree, the legacy tab, and your cumulative Bloodline Score. A loan you haven't paid off yet is a real liability, not free stuff.",
+    tags:['debt','net worth','estate','bloodline score'] },
+  { id:'savings', category:'Money, Credit & Loans', q:"What's the difference between cash and savings?",
+    a:"Cash is spendable immediately on shopping and loan payments. Savings sit separately and grow slowly through the yearly economy tick; moving money between the two is done manually with the \"Put money into savings\" / \"Withdraw from savings\" actions.",
+    tags:['money','cash','savings','invest'] },
+
+  // --- Relationships ---
+  { id:'relationships-general', category:'Relationships', q:"How do relationships work?",
+    a:"Each relationship (parent, sibling, best friend, partner, coworker, and so on) has its own closeness meter. Spending time together and positive interactions raise it; neglecting a relationship lets it decay a little each year. Some milestones, like marriage, are only available once closeness is high enough.",
+    tags:['closeness','friends','family','partner'] },
+  { id:'reactions', category:'Relationships', q:"What are those \"reaction\" moments where an NPC responds to me?",
+    a:"Occasionally (about a 5% chance each year, once you have the right kind of relationship active), someone in your life — a partner, sibling, friend, boss — reacts to how things have been going, and you get four different ways to respond. Your choice moves that relationship's closeness and sometimes a stat, with real variance depending on which option you pick.",
+    tags:['reaction','npc','a b c d','choices'] },
+  { id:'marriage', category:'Relationships', q:"How does marriage work?",
+    a:"Once you're close enough with a partner, a \"marry\" action becomes available. Marrying boosts closeness and is noted permanently in your relationship history.",
+    tags:['marry','wedding','spouse','partner'] },
+
+  // --- Achievements & Legacy ---
+  { id:'achievements', category:'Achievements & Legacy', q:"How many achievements are there and how do I see them?",
+    a:"14 achievements, covering everything from living to 100 to reaching Black Belt to keeping a bloodline going 5 generations. You can check progress any time from the Achievements button on the Family tab or the death screen.",
+    tags:['achievement','trophy','unlock'] },
+  { id:'bloodline-score', category:'Achievements & Legacy', q:"What is the Bloodline Score?",
+    a:"It's a running total across every life in your family line: net worth (cash plus savings, minus any debt) converted to points, plus points for age reached, plus a bonus for every achievement unlocked. It only goes up as your family tree grows, so it rewards playing across generations, not just one great life.",
+    tags:['score','points','ranking'] },
+  { id:'family-tree', category:'Achievements & Legacy', q:"What's in the family tree?",
+    a:"A visual record of every generation you've played, including how each ancestor did — age at death, era, and what they left behind (net worth minus any debt).",
+    tags:['tree','ancestors','generations','legacy'] },
+
+  // --- Challenges & Sharing ---
+  { id:'challenges', category:'Challenges & Sharing', q:"What's a \"Challenge\"?",
+    a:"A fixed, non-random starting scenario — broke, handicapped in one stat, or both — instead of the usual random roll. There are 3 per era, 15 total. They're meant to be compared: you and a friend can both try the exact same tough start and see who does better.",
+    tags:['challenge','handicap','scenario'] },
+  { id:'challenge-links', category:'Challenges & Sharing', q:"How do I share a Challenge with a friend?",
+    a:"Every challenge has a shareable link, shown when you start one and again on the death screen with a \"Copy Challenge Link\" button. Anyone who opens that link gets prompted to try the identical starting scenario.",
+    tags:['share','link','friend'] },
+  { id:'stats-teaser', category:'Challenges & Sharing', q:"What's the percentage shown on my death screen (e.g. \"Only 4% of players have earned...\")?",
+    a:"That's a real, live stat pulled from every player's completed life, showing how rare one of your achievements actually is across everyone who's played.",
+    tags:['percentage','stats','rare','teaser'] },
+
+  // --- Saves & Accounts ---
+  { id:'save-options', category:'Saves & Accounts', q:"What are my options for saving my progress?",
+    a:"You can play as a guest with manual save/load (a downloadable file), or sign in to get automatic cloud saves that follow you across devices. It's your choice the first time you start a life, and either way nothing is required to just play.",
+    tags:['save','load','cloud','guest'] },
+  { id:'guest-vs-account', category:'Saves & Accounts', q:"Do I lose anything by playing as a guest?",
+    a:"Just cross-device convenience — guest saves are local to your browser as a downloadable file rather than synced automatically. Everything else about the game (achievements, Bloodline Score, family tree) works exactly the same either way.",
+    tags:['guest','account','sign in','google'] },
+];
+let faqQuery = '';
+let faqCategory = 'All';
+let faqExpanded = new Set();
+function faqMatches(entry, query){
+  if(!query) return true;
+  const hay = (entry.q + ' ' + entry.a + ' ' + (entry.tags||[]).join(' ')).toLowerCase();
+  return hay.includes(query.toLowerCase());
+}
+function faqFilteredEntries(){
+  return FAQ_ENTRIES.filter(e => (faqCategory === 'All' || e.category === faqCategory) && faqMatches(e, faqQuery));
+}
+function faqResultsHtml(){
+  const entries = faqFilteredEntries();
+  if(!entries.length){
+    return `<div class="faq-empty">No FAQ entries match "${escapeHtml(faqQuery)}". Try a different search term, or use the Feedback button to ask directly.</div>`;
+  }
+  const order = [];
+  const byCategory = {};
+  entries.forEach(e => {
+    if(!byCategory[e.category]){ byCategory[e.category] = []; order.push(e.category); }
+    byCategory[e.category].push(e);
+  });
+  return order.map(cat => `
+    <div class="faq-category-group">
+      <h4>${escapeHtml(cat)}</h4>
+      ${byCategory[cat].map(e => `
+        <div class="faq-item">
+          <button class="faq-question" data-id="${e.id}">${faqExpanded.has(e.id) ? '▾' : '▸'} ${escapeHtml(e.q)}</button>
+          ${faqExpanded.has(e.id) ? `<div class="faq-answer">${escapeHtml(e.a)}</div>` : ''}
+        </div>`).join('')}
+    </div>`).join('');
+}
+function faqChipsHtml(){
+  const cats = ['All'].concat(Array.from(new Set(FAQ_ENTRIES.map(e=>e.category))));
+  return cats.map(cat => `<button class="faq-chip${faqCategory===cat?' active':''}" data-cat="${escapeHtml(cat)}">${escapeHtml(cat)}</button>`).join('');
+}
+function wireFaqResults(){
+  const overlay = document.getElementById('faq-overlay');
+  overlay.querySelectorAll('.faq-question').forEach(btn=>{
+    btn.onclick = ()=>{
+      const id = btn.dataset.id;
+      if(faqExpanded.has(id)) faqExpanded.delete(id); else faqExpanded.add(id);
+      document.getElementById('faq-results').innerHTML = faqResultsHtml();
+      wireFaqResults();
+    };
+  });
+}
+function wireFaqChips(){
+  const overlay = document.getElementById('faq-overlay');
+  overlay.querySelectorAll('.faq-chip').forEach(btn=>{
+    btn.onclick = ()=>{
+      faqCategory = btn.dataset.cat;
+      document.getElementById('faq-chip-row').innerHTML = faqChipsHtml();
+      document.getElementById('faq-results').innerHTML = faqResultsHtml();
+      wireFaqChips();
+      wireFaqResults();
+    };
+  });
+}
+// The search box's own innerHTML is never touched after creation (only the
+// #faq-results / #faq-chip-row children get replaced on input/category
+// change) — re-assigning the input element itself on every keystroke would
+// steal focus and make typing effectively broken.
+function openFaqModal(){
+  faqQuery = ''; faqCategory = 'All'; faqExpanded = new Set();
+  const overlay = document.getElementById('faq-overlay');
+  overlay.innerHTML = `
+    <div class="tree-panel faq-panel">
+      <button class="tree-close" id="faq-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">Help &amp; FAQ</h2>
+      <input type="text" id="faq-search-input" placeholder="Search questions (e.g. &quot;credit score&quot;, &quot;second job&quot;, &quot;achievements&quot;)" />
+      <div class="faq-chip-row" id="faq-chip-row">${faqChipsHtml()}</div>
+      <div class="faq-results" id="faq-results">${faqResultsHtml()}</div>
+    </div>`;
+  overlay.style.display = 'flex';
+  document.getElementById('faq-close-btn').onclick = closeFaqModal;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeFaqModal(); };
+  document.getElementById('faq-search-input').oninput = (e)=>{
+    faqQuery = e.target.value;
+    document.getElementById('faq-results').innerHTML = faqResultsHtml();
+    wireFaqResults();
+  };
+  wireFaqChips();
+  wireFaqResults();
+}
+function closeFaqModal(){
+  const overlay = document.getElementById('faq-overlay');
+  overlay.style.display = 'none';
+  overlay.innerHTML = '';
+}
+
 function openAchievements(){
   const overlay = document.getElementById('tree-overlay');
   const unlocked = state.achievementsUnlocked || [];
@@ -976,14 +1609,18 @@ function newCharacter(eraIndex, name, inherited){
   const era = ERAS[eraIndex];
   const base = { health: randInt(55,85), happiness: randInt(50,80), smarts: randInt(35,70), looks: randInt(35,70), imagination: randInt(25,55) };
   if(inherited && inherited.bonusStat) base[inherited.bonusStat] = clamp(base[inherited.bonusStat] + 15);
+  if(inherited && inherited.minusStat) base[inherited.minusStat] = clamp(base[inherited.minusStat] - 15);
   const startMoney = inherited && inherited.money != null ? inherited.money : randInt(...era.moneyRange);
   const surname = deriveSurname(name);
   const fam = makeFamily(era.id, surname);
   const c = {
     name, eraIndex, age:0, stats:base, money:Math.round(startMoney), savings:0,
-    job:null, salary:0, alive:true, events:[], generation: state.generation,
+    job:null, salary:0, jobTenure:0, secondJob:null, secondSalary:0,
+    alive:true, events:[], generation: state.generation,
     relationships:[], owned:[], actionUsage:{}, surname, _usedText:{},
     skills:{ sports:0, martialArts:0, academic:0, arts:0 },
+    sportsStage:null, sportsStageReps:0, sportsProTierIdx:0,
+    creditScore:null, loans:[],
   };
   fam.rels.forEach(r=>addRelationship(c, r.role, r.name, r.species?{species:r.species}:null));
   return c;
@@ -1041,7 +1678,7 @@ function investOutcome(){
 // Real rank/level progression instead of a flat stat bump — tied to repeated
 // practice of the same action, not a generic number going up in isolation.
 const SKILL_ACTION_MAP = {
-  join_sport:'sports', varsity:'sports',
+  join_sport:'sports', varsity:'sports', college_athletics:'sports', pro_athletics:'sports',
   martial_arts:'martialArts', martial_arts_t:'martialArts',
   study:'academic', study_hard:'academic', take_class:'academic',
   join_arts:'arts', band_arts:'arts',
@@ -1054,16 +1691,90 @@ function skillTier(tiers, reps, perTier){
   const idx = Math.min(tiers.length - 1, Math.floor((reps||0) / perTier));
   return tiers[idx];
 }
+
+/* ---------- sports activity ladder: school -> college -> pro ----------
+   A separate, stage-aware progression layered on top of the Sports skill
+   counter above. Any sports practice before adulthood starts the ladder at
+   'school'; reaching at least Varsity by 18 carries it into 'college', and
+   reaching All-American by 22 carries it into 'pro' — where it becomes the
+   character's actual job, with pay that scales hard by tier. Falling short
+   at either checkpoint just ends the ladder there; the character moves on
+   to a standard job like anyone else (see assignStandardJob above). */
+const SCHOOL_SPORTS_TIERS = ['JV','Varsity','Captain'];
+const COLLEGE_SPORTS_TIERS = ['Varsity','All-Conference','All-American'];
+const PRO_SPORTS_TIERS = ['Rookie','Starter','All-Star','MVP','Hall of Fame'];
+const SPORTS_LADDER_PER_TIER = 4; // reps needed to advance one tier within a stage
+const PRO_SPORTS_SALARY_MULT = [1.5, 2.5, 4, 7, 12]; // x era's average salary, per pro tier
+function sportsLadderTiers(stage){
+  return stage === 'school' ? SCHOOL_SPORTS_TIERS : stage === 'college' ? COLLEGE_SPORTS_TIERS : stage === 'pro' ? PRO_SPORTS_TIERS : null;
+}
+function sportsLadderTier(stage, reps){
+  const tiers = sportsLadderTiers(stage);
+  if(!tiers) return null;
+  const idx = Math.min(tiers.length - 1, Math.floor((reps||0) / SPORTS_LADDER_PER_TIER));
+  return { label: tiers[idx], idx };
+}
+function eraAvgMoney(era){ return (era.moneyRange[0]+era.moneyRange[1])/2; }
+function checkProTierAdvance(c){
+  const era = ERAS[c.eraIndex];
+  const tier = sportsLadderTier('pro', c.sportsStageReps);
+  if(!tier) return;
+  const prevIdx = c.sportsProTierIdx||0;
+  if(tier.idx > prevIdx){
+    c.sportsProTierIdx = tier.idx;
+    c.salary = Math.round(eraAvgMoney(era) * PRO_SPORTS_SALARY_MULT[tier.idx]);
+    c.job = `${PRO_SPORTS_TIERS[tier.idx]} Pro Athlete`;
+    c.jobTenure = 0;
+    logEvent(c, `${firstName(c.name)} was promoted to ${PRO_SPORTS_TIERS[tier.idx]} — the paycheck to match.`, 'good', true);
+  }
+}
+// Called at the age-18 and age-22 checkpoints (see applyMilestones) to
+// decide whether the ladder continues into the next stage or ends here.
+function advanceSportsStage(c){
+  if(c.sportsStage === 'school'){
+    const tier = sportsLadderTier('school', c.sportsStageReps);
+    if(tier && tier.idx >= 1){ // reached at least Varsity
+      c.sportsStage = 'college'; c.sportsStageReps = 0;
+    } else {
+      c.sportsStage = null;
+    }
+  } else if(c.sportsStage === 'college'){
+    const tier = sportsLadderTier('college', c.sportsStageReps);
+    if(tier && tier.idx >= 2){ // reached All-American
+      const era = ERAS[c.eraIndex];
+      c.sportsStage = 'pro'; c.sportsStageReps = 0; c.sportsProTierIdx = 0;
+      c.job = `${PRO_SPORTS_TIERS[0]} Pro Athlete`;
+      c.salary = Math.round(eraAvgMoney(era) * PRO_SPORTS_SALARY_MULT[0]);
+      c.jobTenure = 0;
+      if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
+    } else {
+      c.sportsStage = null;
+    }
+  }
+}
+
 function recordSkillPractice(c, actionId){
   const key = SKILL_ACTION_MAP[actionId];
   if(!key) return;
   if(!c.skills) c.skills = { sports:0, martialArts:0, academic:0, arts:0 };
   c.skills[key] = (c.skills[key]||0) + 1;
+  if(key === 'sports'){
+    if(!c.sportsStage && c.age < 18){ c.sportsStage = 'school'; c.sportsStageReps = 0; }
+    if(c.sportsStage){
+      c.sportsStageReps = (c.sportsStageReps||0) + 1;
+      if(c.sportsStage === 'pro') checkProTierAdvance(c);
+    }
+  }
 }
 function skillsHtml(c){
   if(!c.skills) return '';
   const rows = [];
   if(c.skills.sports > 0) rows.push(`<div>Sports: <strong>${skillTier(SPORTS_TIERS, c.skills.sports, 4)}</strong></div>`);
+  if(c.sportsStage){
+    const tier = sportsLadderTier(c.sportsStage, c.sportsStageReps);
+    const stageLabel = c.sportsStage === 'school' ? 'School Athletics' : c.sportsStage === 'college' ? 'College Athletics' : 'Pro Athletics';
+    if(tier) rows.push(`<div>${stageLabel}: <strong>${tier.label}</strong></div>`);
+  }
   if(c.skills.martialArts > 0) rows.push(`<div>Martial Arts: <strong>${skillTier(MARTIAL_ARTS_BELTS, c.skills.martialArts, 3)}</strong></div>`);
   if(c.skills.academic > 0) rows.push(`<div>Academic Track: <strong>${skillTier(ACADEMIC_TIERS, c.skills.academic, 4)}</strong></div>`);
   if((c.skills.arts||0) > 0) rows.push(`<div>Arts: <strong>${skillTier(ARTS_TIERS, c.skills.arts, 4)}</strong></div>`);
@@ -1075,11 +1786,11 @@ function skillsHtml(c){
 function handleSpecial(c, special, action){
   const era = ERAS[c.eraIndex];
   if(special === 'make_friend' && !relByRole(c,'bestfriend')){
-    const name = pick(FIRST_NAMES)+' '+pick(LAST_NAMES);
+    const name = firstNameForEra(era.id)+' '+pick(LAST_NAMES);
     addRelationship(c, 'bestfriend', name);
     logEvent(c, `${firstName(c.name)} became close friends with ${firstName(name)}.`, 'good');
   } else if(special === 'find_partner' && !relByRole(c,'partner')){
-    const name = pick(FIRST_NAMES)+' '+pick(LAST_NAMES);
+    const name = firstNameForEra(era.id)+' '+pick(LAST_NAMES);
     addRelationship(c, 'partner', name);
     logEvent(c, `${firstName(c.name)} started seeing ${firstName(name)}.`, 'good');
   } else if(special === 'teen_job' && !c.job){
@@ -1087,6 +1798,14 @@ function handleSpecial(c, special, action){
     c.job = title; c.salary = randInt(8,25);
     addRelationship(c, 'boss', pick(BOSS_NAMES));
     logEvent(c, `${firstName(c.name)} got a part-time job as a ${title}.`, 'good');
+  } else if(special === 'second_job' && c.job && !c.secondJob){
+    const title = pick(JOB_TITLES[era.id]);
+    c.secondJob = title;
+    c.secondSalary = Math.round(randInt(...era.moneyRange) * 0.35 + 10);
+    logEvent(c, `${firstName(c.name)} took on a second job as a ${title}, on top of everything else.`, '');
+  } else if(special === 'quit_second_job' && c.secondJob){
+    logEvent(c, `${firstName(c.name)} quit the second job as a ${c.secondJob} — one less thing to juggle.`, '');
+    c.secondJob = null; c.secondSalary = 0;
   } else if(special === 'deposit_savings'){
     const maxAmt = Math.floor(c.money);
     if(maxAmt < 1){
@@ -1161,6 +1880,9 @@ function buildActionMenu(c){
     if(def.special === 'find_partner' && relByRole(c,'partner')) return;
     if(def.special === 'make_friend' && relByRole(c,'bestfriend')) return;
     if(def.special === 'teen_job' && c.job) return;
+    if(def.special === 'second_job' && (!c.job || c.secondJob)) return;
+    if(def.special === 'quit_second_job' && !c.secondJob) return;
+    if(def.requiresSportsStage && c.sportsStage !== def.requiresSportsStage) return;
     if(def.minAge && c.age < def.minAge) return;
     // minSmarts/minImagination: content that only opens up once a character
     // has built up that stat, so smarts/imagination gate real opportunities
@@ -1185,6 +1907,17 @@ function buildActionMenu(c){
       shopItem:item, rel:null, key:'buy_'+item.id,
       label:`Buy: ${item.label}`, category:'Shop', cost:item.cost,
     });
+    // Financing is a second way to get the same item — only offered to
+    // adults with a credit history good enough that a lender would actually
+    // say yes. Cost gates on the down payment, not the sticker price; the
+    // rest becomes a loan (see startLoan) at a rate set by creditScore.
+    if(item.financeable && c.age >= 18 && c.creditScore != null && c.creditScore >= CREDIT_DENY_THRESHOLD){
+      const downPayment = Math.round(item.cost * 0.2);
+      actions.push({
+        financeItem:item, rel:null, key:'finance_'+item.id,
+        label:`Finance: ${item.label} (${Math.round(downPayment)} down)`, category:'Shop', cost:downPayment,
+      });
+    }
   });
 
   return actions;
@@ -1203,6 +1936,16 @@ function performAction(c, action){
   if(used >= cap) return;
   if(action.cost && c.money < action.cost) return;
   const def = action.def;
+
+  if(action.financeItem){
+    const item = action.financeItem;
+    startLoan(c, item);
+    const loan = c.loans[c.loans.length-1];
+    logEvent(c, `${firstName(c.name)} financed ${item.label.toLowerCase()} — $${loan.payment.toLocaleString()}/yr for ${loan.years} years at ${Math.round(loan.rate*1000)/10}%.`, '');
+    c.actionUsage[action.key] = used + 1;
+    renderGame();
+    return;
+  }
 
   if(action.shopItem){
     c.money -= action.cost;
@@ -1241,26 +1984,38 @@ function applyMilestones(c){
   if(c.age === 5){
     logEvent(c, `${firstName(c.name)} started school.`, '', true);
     if(!relByRole(c,'teacher')) addRelationship(c, 'teacher', pick(TEACHER_NAMES));
-    if(!relByRole(c,'bestfriend')) addRelationship(c, 'bestfriend', pick(FIRST_NAMES)+' '+pick(LAST_NAMES));
+    if(!relByRole(c,'bestfriend')) addRelationship(c, 'bestfriend', firstNameForEra(era.id)+' '+pick(LAST_NAMES));
   }
   if(c.age === 18){
+    c.creditScore = STARTING_CREDIT_SCORE;
     c.relationships.filter(r=>r.role==='teacher').forEach(r=>r.active=false);
-    const highSmarts = (c.stats.smarts||0) >= ELITE_JOB_SMARTS_THRESHOLD;
-    const titlePool = highSmarts ? (ELITE_JOB_TITLES[era.id] || JOB_TITLES[era.id]) : JOB_TITLES[era.id];
-    const title = pick(titlePool);
-    c.job = title;
-    c.salary = randInt(...era.moneyRange) * (highSmarts ? 0.9 : 0.6) + 20;
-    c.salary = Math.round(c.salary);
-    if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
-    addRelationship(c, 'coworker', pick(FIRST_NAMES)+' '+pick(LAST_NAMES));
-    const msg = highSmarts
-      ? `${firstName(c.name)}'s smarts opened doors — they became an adult and landed a competitive job as a ${title}.`
-      : `${firstName(c.name)} became an adult and took a job as a ${title}.`;
-    logEvent(c, msg, '', true);
+    advanceSportsStage(c);
+    if(c.sportsStage === 'college'){
+      logEvent(c, `${firstName(c.name)} became an adult and headed off to compete in college athletics.`, '', true);
+    } else {
+      const { title, highSmarts } = assignStandardJob(c);
+      const msg = highSmarts
+        ? `${firstName(c.name)}'s smarts opened doors — they became an adult and landed a competitive job as a ${title}.`
+        : `${firstName(c.name)} became an adult and took a job as a ${title}.`;
+      logEvent(c, msg, '', true);
+    }
+  }
+  // College athletics either turns pro (advanceSportsStage handles the pay
+  // and job title) or wraps up without a pro career, in which case the
+  // character takes a standard job now instead — four years later than
+  // everyone else, since they were busy competing instead of working.
+  if(c.age === 22 && c.sportsStage === 'college'){
+    advanceSportsStage(c);
+    if(c.sportsStage !== 'pro'){
+      const { title } = assignStandardJob(c);
+      logEvent(c, `${firstName(c.name)}'s college athletic career wound down without a pro contract — they took a job as a ${title} instead.`, '', true);
+    }
   }
   if(c.age === 65 && c.job){
     logEvent(c, `${firstName(c.name)} retired after years as a ${c.job}.`, '', true);
     c.job = null;
+    if(c.sportsStage === 'pro') c.sportsStage = null;
+    if(c.secondJob){ c.secondJob = null; c.secondSalary = 0; }
     c.relationships.filter(r=>r.role==='boss'||r.role==='coworker').forEach(r=>r.active=false);
   }
 }
@@ -1308,9 +2063,17 @@ function partialAdvance(c){
 }
 
 function completeYear(c){
-  if(c.job && c.age >= 18) c.money += c.salary;
+  if(c.job && c.age >= 18){
+    applyJobRaise(c);
+    c.money += c.salary;
+  }
+  if(c.secondJob && c.age >= 18){
+    c.money += c.secondSalary;
+    secondJobPenalty(c);
+  }
   if(c.age > 60) c.stats.health = clamp(c.stats.health - randInt(1,4));
   applyEconomyInterest(c);
+  processLoans(c);
 
   // relationship decay if neglected — mild, keeps the system meaningful
   c.relationships.filter(r=>r.active).forEach(r=>{ r.closeness = clamp(r.closeness - randInt(1,3)); });
@@ -1324,6 +2087,17 @@ function completeYear(c){
     const storyPool = storiesFor(bracket, ERAS[c.eraIndex].id);
     if(storyPool.length){
       openStoryModal(c, pick(storyPool), () => finishYear(c));
+      return;
+    }
+  }
+
+  // Relationship reaction roll — same "stands in for the year's event" rule
+  // as mini-stories above, just scoped to an actual named relationship
+  // reacting to how things have been going, in their own voice.
+  if(REACTION_BRACKETS.includes(bracket) && Math.random() < REACTION_CHANCE){
+    const found = pickReactionForCharacter(c, bracket);
+    if(found){
+      openReactionModal(c, found.moment, found.rel, () => finishYear(c));
       return;
     }
   }
@@ -1368,7 +2142,7 @@ function killCharacter(c){
   checkAchievements(); // one final check against this life before it's recorded
   state.familyLog.push({
     gen:c.generation, name:c.name, era:ERAS[c.eraIndex].name, eraId:ERAS[c.eraIndex].id,
-    age:c.age, money:c.money, savings:c.savings||0, peakStat: topStat(c), causeOfDeath:c.causeOfDeath, highlight: topHighlightText(c),
+    age:c.age, money:c.money, savings:c.savings||0, debt:outstandingDebt(c), peakStat: topStat(c), causeOfDeath:c.causeOfDeath, highlight: topHighlightText(c),
   });
   trackEvent('life_ended', { bloodlineScore: computeBloodlineScore(), achievementsUnlocked: state.achievementsUnlocked || [] });
   cloudAutosave();
@@ -1403,9 +2177,11 @@ function generateShareText(c){
   const era = ERAS[c.eraIndex];
   const highlights = topShareHighlights(c, 3);
   const surname = c.surname || c.name.split(' ').slice(-1)[0];
-  const totalEstate = (c.money||0) + (c.savings||0);
+  const totalEstate = (c.money||0) + (c.savings||0) - outstandingDebt(c);
+  const challenge = state.activeChallenge ? CHALLENGES.find(ch=>ch.id===state.activeChallenge) : null;
   const lines = [];
   lines.push('🩸 BLOODLINE');
+  if(challenge) lines.push(`🎯 Challenge: ${challenge.name}`);
   lines.push(`${c.name} — ${era.name} (${era.years})`);
   lines.push(`Age ${c.age} • ${c.job ? c.job : 'no steady job'} • Died of ${c.causeOfDeath}`);
   lines.push(`Left $${totalEstate.toLocaleString()} to the next generation`);
@@ -1416,7 +2192,11 @@ function generateShareText(c){
   }
   lines.push('');
   lines.push(`Generation ${c.generation} of the ${surname} bloodline.`);
-  lines.push('Play yours → https://bloodline-game.netlify.app');
+  if(challenge){
+    lines.push(`Think you can beat this start? Same challenge → ${challengeShareUrl(challenge.id)}`);
+  } else {
+    lines.push('Play yours → https://bloodline-game.netlify.app');
+  }
   return lines.join('\n');
 }
 
@@ -1648,7 +2428,7 @@ function treeNodeHtml(f){
   const eraId = f.eraId || eraIdFromName(f.era);
   const color = ERA_COLORS[eraId] || 'var(--accent)';
   const traitLabel = TRAIT_LABEL[f.peakStat] || f.peakStat;
-  const totalLeft = (f.money||0) + (f.savings||0);
+  const totalLeft = (f.money||0) + (f.savings||0) - (f.debt||0);
   const detailLine = f.alive
     ? `Age ${f.age} · still writing their story`
     : `Lived to ${f.age} · died of ${f.causeOfDeath || 'unknown causes'} · left $${totalLeft.toLocaleString()}`;
@@ -1697,23 +2477,102 @@ const setupEl = document.getElementById('screen-setup');
 const gameEl = document.getElementById('screen-game');
 const deathEl = document.getElementById('screen-death');
 let selectedEra = 0;
+let pendingChallenge = null; // set from a ?challenge=<id> link before the first renderSetup()
+
+/* ---------- challenge seeds: modal + start flow ---------- */
+function challengeShareUrl(id){ return `https://bloodline-game.netlify.app/?challenge=${encodeURIComponent(id)}`; }
+
+function openChallengeModal(){
+  const overlay = document.getElementById('challenge-overlay');
+  const cards = ERAS.map(era=>{
+    const rows = challengesByEra(era.id).map(ch=>`
+      <div class="challenge-card">
+        <div class="challenge-card-body">
+          <strong>${escapeHtml(ch.name)}</strong>
+          <p>${escapeHtml(ch.tagline)}</p>
+          <span class="challenge-meta">Start with $${ch.startMoney}${ch.minusStat ? ` · weak ${ch.minusStat}` : ''}</span>
+        </div>
+        <button class="btn-primary challenge-start-btn" data-id="${ch.id}">Try It</button>
+      </div>`).join('');
+    return `<div class="challenge-era-group"><h4>${era.name} <span class="challenge-meta">(${era.years})</span></h4>${rows}</div>`;
+  }).join('');
+  overlay.innerHTML = `
+    <div class="tree-panel">
+      <button class="tree-close" id="challenge-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">Try a Challenge</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;">Fixed starting scenarios instead of the usual random roll. Beat one, then send the link to a friend and see how they do with the exact same start.</p>
+      ${cards}
+    </div>`;
+  overlay.style.display = 'flex';
+  overlay.querySelectorAll('.challenge-start-btn').forEach(btn=>{
+    btn.onclick = ()=> startChallenge(CHALLENGES.find(c=>c.id===btn.dataset.id));
+  });
+  document.getElementById('challenge-close-btn').onclick = closeChallengeModal;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeChallengeModal(); };
+}
+function closeChallengeModal(){
+  const overlay = document.getElementById('challenge-overlay');
+  overlay.style.display = 'none';
+  overlay.innerHTML = '';
+}
+function startChallenge(challenge){
+  if(!challenge) return;
+  const eraIdx = ERAS.findIndex(e=>e.id===challenge.eraId);
+  if(eraIdx < 0) return;
+  const name = `${firstNameForEra(challenge.eraId)} ${pick(LAST_NAMES)}`;
+  ensureIdentity(()=>{
+    state.generation = 1; state.familyLog = [];
+    state.char = newCharacter(eraIdx, name, { money: challenge.startMoney, minusStat: challenge.minusStat });
+    state.activeChallenge = challenge.id;
+    trackEvent('life_started', { era: ERAS[eraIdx].id, challengeId: challenge.id });
+    closeChallengeModal();
+    pendingChallenge = null;
+    renderGame();
+    cloudAutosave();
+  });
+}
+function checkChallengeLink(){
+  const params = new URLSearchParams(location.search);
+  const cid = params.get('challenge');
+  if(!cid) return;
+  const found = CHALLENGES.find(ch=>ch.id===cid);
+  if(found) pendingChallenge = found;
+}
 
 function renderSetup(){
   gameEl.style.display='none'; deathEl.style.display='none'; setupEl.style.display='block';
   resetTheme();
+  const challengeBanner = pendingChallenge ? `
+    <div class="challenge-banner">
+      <div><strong>🎯 You've been challenged:</strong> ${escapeHtml(pendingChallenge.name)} (${ERAS.find(e=>e.id===pendingChallenge.eraId).name})<br>
+      <span style="color:var(--text-dim);font-size:0.85rem;">${escapeHtml(pendingChallenge.tagline)}</span></div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn-primary" id="accept-challenge-btn">Start This Challenge</button>
+        <button class="btn-secondary" id="dismiss-challenge-btn">No thanks</button>
+      </div>
+    </div>` : '';
   setupEl.innerHTML = `
     <h2 style="margin-top:0;">Start a Bloodline</h2>
     <p style="color:var(--text-dim);font-size:0.9rem;">Pick the era your family's story begins in. When this character dies, you'll be able to continue as their child in the next era.</p>
+    ${challengeBanner}
     <div class="era-grid" id="era-grid"></div>
     <label for="name-input">Character name</label>
     <input type="text" id="name-input" placeholder="e.g. Wyatt Calloway" />
     <div class="btn-row">
       <button class="btn-primary" id="start-btn">Begin Life</button>
       <button class="btn-secondary" id="random-name-btn">Random Name</button>
+      <button class="btn-secondary" id="challenge-btn">🎯 Try a Challenge</button>
       <button class="btn-secondary" id="load-save-btn">Load a Save…</button>
+      <button class="btn-secondary" id="faq-btn">❓ Help &amp; FAQ</button>
       ${window.__cloudSaveAvailable ? '<button class="btn-primary" id="cloud-continue-btn">☁️ Continue Your Saved Game</button>' : ''}
     </div>
     ${window.__cloudSaveAvailable ? `<p style="color:var(--text-dim);font-size:0.78rem;margin:10px 0 0;">Found a cloud save from this ${CLOUD.authType === 'google' ? 'Google account' : 'device'} — “Continue” picks up right where it left off.</p>` : ''}`;
+  if(pendingChallenge){
+    document.getElementById('accept-challenge-btn').onclick = ()=> startChallenge(pendingChallenge);
+    document.getElementById('dismiss-challenge-btn').onclick = ()=>{ pendingChallenge = null; renderSetup(); };
+  }
+  document.getElementById('challenge-btn').onclick = openChallengeModal;
+  document.getElementById('faq-btn').onclick = openFaqModal;
   const grid = document.getElementById('era-grid');
   ERAS.forEach((era, idx)=>{
     const div = document.createElement('div');
@@ -1723,17 +2582,18 @@ function renderSetup(){
     grid.appendChild(div);
   });
   document.getElementById('random-name-btn').onclick = ()=>{
-    document.getElementById('name-input').value = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    document.getElementById('name-input').value = `${firstNameForEra(ERAS[selectedEra].id)} ${pick(LAST_NAMES)}`;
   };
   document.getElementById('load-save-btn').onclick = triggerLoad;
   const cloudBtn = document.getElementById('cloud-continue-btn');
   if(cloudBtn) cloudBtn.onclick = ()=> loadStatePayload(window.__cloudSaveAvailable);
   document.getElementById('start-btn').onclick = ()=>{
     let name = document.getElementById('name-input').value.trim();
-    if(!name) name = `${pick(FIRST_NAMES)} ${pick(LAST_NAMES)}`;
+    if(!name) name = `${firstNameForEra(ERAS[selectedEra].id)} ${pick(LAST_NAMES)}`;
     ensureIdentity(()=>{
       state.generation = 1; state.familyLog = [];
       state.char = newCharacter(selectedEra, name, null);
+      state.activeChallenge = null;
       trackEvent('life_started', { era: ERAS[selectedEra].id });
       renderGame();
       cloudAutosave();
@@ -1788,13 +2648,20 @@ function renderGame(){
     ? c.owned.map(id=>{ const item=(SHOP_ITEMS[era.id]||[]).find(i=>i.id===id); return `<div>${item?item.label:id}</div>`; }).join('')
     : '<div>Nothing yet.</div>';
 
+  const creditHtml = c.creditScore == null ? '' : `
+    <div class="credit-section">
+      <h4>${CREDIT_LABEL[era.id]}</h4>
+      <div>${c.creditScore} <span style="color:var(--text-dim);font-size:0.8rem;">(${creditTierLabel(c.creditScore)})</span></div>
+      ${ (c.loans && c.loans.length) ? `<div class="loans-list">${c.loans.map(l=>`<div>${escapeHtml(l.itemLabel)}: $${l.balance.toLocaleString()} left · $${l.payment.toLocaleString()}/yr</div>`).join('')}</div>` : '<div style="color:var(--text-dim);font-size:0.8rem;">No active loans.</div>' }
+    </div>`;
+
   const tabPanelHtml = {
     life: '',
     relationships: `<div class="rel-section">${relHtml || '<div style="font-size:0.8rem;color:var(--text-dim);">No relationships yet.</div>'}</div>`,
-    finances: `<div class="owned-section"><h4>Owned</h4><div class="owned-list">${ownedHtml}</div></div>`,
+    finances: `<div class="owned-section"><h4>Owned</h4><div class="owned-list">${ownedHtml}</div></div>${creditHtml}`,
     family: `<div class="legacy-box"><h4>Family Legacy — Gen ${state.generation}</h4>
       ${ state.familyLog.length === 0 ? '<div>No ancestors yet — you\'re the first.</div>'
-         : state.familyLog.map(f=>`<div>Gen ${f.gen}: <strong>${f.name}</strong> (${f.era}) — lived to ${f.age}, left $${((f.money||0)+(f.savings||0)).toLocaleString()}</div>`).join('') }
+         : state.familyLog.map(f=>`<div>Gen ${f.gen}: <strong>${f.name}</strong> (${f.era}) — lived to ${f.age}, left $${((f.money||0)+(f.savings||0)-(f.debt||0)).toLocaleString()}</div>`).join('') }
       <button class="btn-secondary" id="view-tree-btn" style="margin-top:10px;width:100%;">🌳 View Family Tree</button>
       <button class="btn-secondary" id="view-achievements-btn" style="margin-top:8px;width:100%;">🏆 Achievements (${(state.achievementsUnlocked||[]).length}/${ACHIEVEMENTS.length})</button>
     </div>`,
@@ -1813,6 +2680,7 @@ function renderGame(){
       <button class="btn-secondary" id="feedback-btn">💬 Feedback</button>
       <button class="btn-secondary" id="save-game-btn">Save Game</button>
       <button class="btn-secondary" id="load-game-btn">Load Save…</button>
+      <button class="btn-secondary" id="faq-btn">❓ Help</button>
     </div>
     <div class="game-layout">
       <div>
@@ -1827,7 +2695,8 @@ function renderGame(){
         ${statBar('Imagination','imagination',c.stats.imagination||0)}
         <div class="money-line"><span>Cash</span><span class="amt">$${c.money.toLocaleString()}</span></div>
         ${c.savings ? `<div class="money-line"><span>Savings</span><span class="amt">$${c.savings.toLocaleString()}</span></div>` : ''}
-        ${c.job ? `<div class="job-line">Earning ~$${c.salary}/yr as a ${c.job}</div>` : ''}
+        ${c.job ? `<div class="job-line">Earning ~$${c.salary.toLocaleString()}/yr as a ${c.job}${c.jobTenure ? ` (${c.jobTenure} yr${c.jobTenure===1?'':'s'})` : ''}</div>` : ''}
+        ${c.secondJob ? `<div class="job-line">Also working as a ${c.secondJob} (+$${c.secondSalary.toLocaleString()}/yr)</div>` : ''}
         ${skillsHtml(c)}
       </div>
 
@@ -1904,6 +2773,7 @@ function renderGame(){
   document.getElementById('advance-year-btn').onclick = ()=> advanceTurn(12);
   document.getElementById('save-game-btn').onclick = saveGame;
   document.getElementById('feedback-btn').onclick = openFeedbackModal;
+  document.getElementById('faq-btn').onclick = openFaqModal;
   document.getElementById('load-game-btn').onclick = ()=>{
     // Loading immediately replaces the live character with no undo — confirm
     // first so an accidental click (or idle curiosity) can't wipe a run.
@@ -1925,21 +2795,22 @@ function renderDeath(c){
   // Estate = cash + savings. The old version only passed on c.money, so any
   // savings a player carefully built up simply vanished at death instead of
   // reaching their heir — this fixes that.
-  const totalEstate = (c.money||0) + (c.savings||0);
+  const totalEstate = (c.money||0) + (c.savings||0) - outstandingDebt(c);
   const inheritance = Math.round(totalEstate * 0.4);
   const bonusStat = topStat(c);
   const STAT_LABEL_MAP = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',imagination:'Imagination'};
   const statLabel = STAT_LABEL_MAP[bonusStat];
   const shareText = generateShareText(c);
+  const activeChallengeObj = state.activeChallenge ? CHALLENGES.find(ch=>ch.id===state.activeChallenge) : null;
 
   // Two candidate children to choose from at the handoff — real branching, so
   // two people playing "the same" bloodline can end up with different stories.
   const STAT_KEYS = ['health','happiness','smarts','looks','imagination'];
   function pickDifferentStat(exclude){ let s; let guard=0; do{ s = pick(STAT_KEYS); guard++; } while(s===exclude && guard<10); return s; }
   const childSurname = c.surname || c.name.split(' ').slice(-1)[0];
-  const child1Name = pick(FIRST_NAMES);
-  let child2Name = pick(FIRST_NAMES);
-  if(child2Name === child1Name) child2Name = pick(FIRST_NAMES);
+  const child1Name = firstNameForEra(nextEra.id);
+  let child2Name = firstNameForEra(nextEra.id);
+  if(child2Name === child1Name) child2Name = firstNameForEra(nextEra.id);
   const child1Stat = bonusStat;
   const child2Stat = pickDifferentStat(child1Stat);
 
@@ -1947,6 +2818,8 @@ function renderDeath(c){
     <div class="death-panel">
       <h2>${c.name} has died</h2>
       <div class="epitaph">Age ${c.age} · ${era.name} · cause: ${c.causeOfDeath}</div>
+      ${activeChallengeObj ? `<div class="challenge-tag">🎯 Challenge: ${escapeHtml(activeChallengeObj.name)}</div>` : ''}
+      <div id="stats-teaser" class="stats-teaser" style="display:none;"></div>
       <div class="stat-summary">
         <div><div class="val">${c.age}</div><div class="lbl">Years Lived</div></div>
         <div><div class="val">$${totalEstate.toLocaleString()}</div><div class="lbl">Estate</div></div>
@@ -1963,6 +2836,7 @@ function renderDeath(c){
         <div class="btn-row" style="justify-content:center;margin-top:10px;">
           <button class="btn-secondary" id="copy-share-btn">Copy to Clipboard</button>
           <button class="btn-secondary" id="download-image-btn">Download Image</button>
+          ${activeChallengeObj ? '<button class="btn-secondary" id="copy-challenge-link-btn">Copy Challenge Link</button>' : ''}
         </div>
       </div>
 
@@ -1976,6 +2850,7 @@ function renderDeath(c){
         <button class="btn-secondary" id="new-life-btn">Start a New Bloodline</button>
         <button class="btn-secondary" id="load-save-btn-death">Load a Save…</button>
         <button class="btn-secondary" id="feedback-btn-death">💬 Feedback</button>
+        <button class="btn-secondary" id="faq-btn-death">❓ Help &amp; FAQ</button>
       </div>
     </div>`;
 
@@ -1983,6 +2858,7 @@ function renderDeath(c){
     state.generation += 1;
     const fullName = `${childName} ${childSurname}`;
     state.char = newCharacter(nextEraIndex, fullName, {money: inheritance, bonusStat: childStat});
+    state.activeChallenge = null; // a challenge seed applies to the one life it started, not the heir
     trackEvent('life_started', { era: ERAS[nextEraIndex].id });
     renderGame();
     cloudAutosave();
@@ -1995,7 +2871,7 @@ function renderDeath(c){
     // Wipes the whole family history (tree, achievements, Bloodline Score) —
     // confirm first, since there's no autosave to fall back on.
     if(!confirm('Start a brand new bloodline? This clears your current family history and achievements unless you saved first.')) return;
-    state = {generation:1, familyLog:[], char:null};
+    state = {generation:1, familyLog:[], char:null, activeChallenge:null};
     selectedEra = 0;
     renderSetup();
   };
@@ -2003,6 +2879,7 @@ function renderDeath(c){
     if(confirm('Loading a save will replace your current bloodline history. Continue?')) triggerLoad();
   };
   document.getElementById('feedback-btn-death').onclick = openFeedbackModal;
+  document.getElementById('faq-btn-death').onclick = openFaqModal;
   document.getElementById('download-image-btn').onclick = ()=>{
     const btn = document.getElementById('download-image-btn');
     try{
@@ -2031,6 +2908,44 @@ function renderDeath(c){
     }
     resetLabel();
   };
+  const copyChallengeBtn = document.getElementById('copy-challenge-link-btn');
+  if(copyChallengeBtn && activeChallengeObj){
+    copyChallengeBtn.onclick = async ()=>{
+      const link = challengeShareUrl(activeChallengeObj.id);
+      const resetLabel = ()=> setTimeout(()=>{ copyChallengeBtn.textContent = 'Copy Challenge Link'; }, 1800);
+      try{
+        await navigator.clipboard.writeText(link);
+        copyChallengeBtn.textContent = 'Copied!';
+      } catch(e){
+        copyChallengeBtn.textContent = link;
+      }
+      resetLabel();
+    };
+  }
+  loadStatsTeaser(c);
+}
+
+/* ---------- player-facing stats teaser (death screen) ----------
+   Pulls from the public, non-admin stats endpoint (no ADMIN_KEY needed) and
+   surfaces one relevant number — degrades silently (stays hidden) if the
+   backend isn't deployed yet or the fetch fails, same pattern as the rest
+   of the optional cloud features. */
+async function loadStatsTeaser(c){
+  const el = document.getElementById('stats-teaser');
+  if(!el) return;
+  const res = await cloudGet('public-stats');
+  if(!res || !res.totalDeaths || !res.achievements){ return; }
+  const earnedIds = state.achievementsUnlocked || [];
+  const earnedThisRun = earnedIds.map(id => res.achievements[id]).filter(Boolean);
+  let text = '';
+  if(earnedThisRun.length){
+    const rarest = earnedThisRun.reduce((a,b)=> (a.pct <= b.pct ? a : b));
+    text = `📊 Only ${rarest.pct}% of players have earned "${rarest.label}" — you just did.`;
+  } else {
+    const fallback = res.achievements['millionaire'];
+    if(fallback) text = `📊 Only ${fallback.pct}% of players have ever earned "${fallback.label}."`;
+  }
+  if(text){ el.textContent = text; el.style.display = 'block'; }
 }
 
 /* ---------- cloud (optional): identity, autosave, play stats, feedback ----------
@@ -2256,6 +3171,7 @@ function handleLoadFile(evt){
 document.getElementById('load-input').addEventListener('change', handleLoadFile);
 document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeFamilyTree(); closeFeedbackModal(); } });
 
+checkChallengeLink();
 initCloud();
 renderSetup();
 </script>
