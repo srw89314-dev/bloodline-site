@@ -236,7 +236,7 @@
   <div id="reaction-overlay" class="story-overlay"></div>
   <div id="faq-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.6.4 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.7.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -1399,6 +1399,30 @@ const MINI_STORIES = [
       { label:'Pass it to someone else', effect:{happiness:[1,3]}, cls:'', result:"{name} passed it off, relieved, and watched from the crowd instead." },
     ],
   },
+  {
+    id:'sibling_rivalry', brackets:['kid','teen'],
+    prompt:"{name} and a sibling both want the same thing badly enough that it's turning into a real competition.",
+    choices:[
+      { label:'Compete for it fair and square', effect:{happiness:[2,5], strength:[1,2]}, cls:'', result:"{name} threw themselves into it. Didn't always win, but it was a fair fight." },
+      { label:'Let the sibling have it', effect:{happiness:[1,3]}, cls:'good', result:"{name} stepped back. Not every fight is worth having, and it kept the peace." },
+    ],
+  },
+  {
+    id:'unexpected_inheritance', brackets:['adult','senior'],
+    prompt:"A distant relative {name} barely knew has passed and left behind a small, unexpected inheritance.",
+    choices:[
+      { label:'Put it toward something lasting', effect:{money:[60,150], happiness:[2,4]}, cls:'good', result:"{name} put it to good use rather than letting it slip away on nothing in particular." },
+      { label:'Spend it on something fun', effect:{money:[20,60], happiness:[5,9]}, cls:'', result:"{name} spent it on something purely for the joy of it. No regrets." },
+    ],
+  },
+  {
+    id:'public_criticism', brackets:['teen','adult','senior'],
+    prompt:"Someone {name} respects criticizes their work in front of others — fair or not, it stings.",
+    choices:[
+      { label:'Take it seriously and improve', effect:{smarts:[2,5], happiness:[-3,1]}, cls:'', result:"{name} sat with it, and it actually made the next attempt better." },
+      { label:'Shrug it off', effect:{happiness:[1,3]}, cls:'', result:"{name} let it roll off. Life's too short to dwell on one bad review." },
+    ],
+  },
 ];
 // Era-specific one-off storylines — same blocking-choice mechanic as the
 // generic MINI_STORIES above, but flavored to a single era instead of
@@ -1424,6 +1448,12 @@ const ERA_MINI_STORIES = {
         { label:'Pay for the tip and go looking', effect:{money:[-30,150]}, imaginationScaled:true, cls:'', result:"{name} paid up and went looking." },
         { label:"Keep working the land you've got", effect:{happiness:[1,3]}, cls:'good', result:"{name} stayed put. Slower, but steady beats a stranger's story." },
       ] },
+    { id:'outlaw_shelter', brackets:['adult','senior'],
+      prompt:"A stranger with a hard look and a fast horse asks {name} for a night's shelter, no questions — and doesn't say why he needs it.",
+      choices:[
+        { label:'Turn him away', effect:{happiness:[1,3]}, cls:'good', result:"{name} said no. Safer not to know, and safer not to be involved." },
+        { label:'Let him stay the night', effect:{money:[10,40], happiness:[-3,3]}, cls:'', result:"{name} let him stay. He left before sunup, a few coins heavier and a lot of questions unanswered." },
+      ] },
   ],
   twenties: [
     { id:'bootleg_favor', brackets:['teen','adult'],
@@ -1437,6 +1467,12 @@ const ERA_MINI_STORIES = {
       choices:[
         { label:'Go all in on the nightlife', effect:{happiness:[4,8], money:[-15,5]}, cls:'', result:"{name} had a genuinely great night, cover charge and all." },
         { label:'Keep a respectable distance', effect:{happiness:[1,3]}, cls:'good', result:"{name} politely declined. No trouble, no story to tell either." },
+      ] },
+    { id:'radio_debut', brackets:['teen','adult'],
+      prompt:"A local radio station is looking for someone to fill an unscheduled slot tonight, and someone put {name}'s name forward.",
+      choices:[
+        { label:'Take the mic', effect:{looks:[2,4], happiness:[3,6], money:[5,20]}, cls:'good', result:"{name} took the mic and it went over surprisingly well — people were still talking about it days later." },
+        { label:'Let someone else have the spot', effect:{happiness:[1,2]}, cls:'', result:"{name} passed on it. Someone else got the airtime instead." },
       ] },
   ],
   postwar: [
@@ -1452,6 +1488,12 @@ const ERA_MINI_STORIES = {
         { label:'Get involved', effect:{happiness:[3,6]}, cls:'good', result:"{name} got involved, and the block party actually came together nicely." },
         { label:'Stay out of local politics', effect:{happiness:[-1,2]}, cls:'', result:"{name} passed on it and let the committee sort it out." },
       ] },
+    { id:'returning_veteran', brackets:['adult','senior'],
+      prompt:"A neighbor recently back from overseas is having a hard time settling back into regular life, and clearly could use someone to talk to.",
+      choices:[
+        { label:'Make time for him', effect:{happiness:[3,6]}, cls:'good', result:"{name} made the time. It didn't fix everything, but it helped, and the friendship meant something." },
+        { label:"Keep a respectful distance", effect:{happiness:[-1,2]}, cls:'', result:"{name} figured it wasn't their place to intrude, and left him be." },
+      ] },
   ],
   modern: [
     { id:'gig_spiral', brackets:['teen','adult'],
@@ -1466,6 +1508,12 @@ const ERA_MINI_STORIES = {
         { label:'Lean into the attention', effect:{happiness:[3,6], money:[10,40]}, cls:'', result:"{name} leaned in and rode the wave — fun, if a little overwhelming." },
         { label:'Keep it low-key', effect:{happiness:[1,3]}, cls:'good', result:"{name} let it die down on its own and got back to normal life." },
       ] },
+    { id:'startup_pitch', brackets:['adult'],
+      prompt:"A friend asks {name} to put real time and money into their startup idea — it could be huge, or it could go nowhere.",
+      choices:[
+        { label:'Get in early', effect:{money:[-40,130], happiness:[2,5]}, imaginationScaled:true, cls:'', result:"{name} got in early, for better or worse." },
+        { label:'Wish them luck and stay out of it', effect:{happiness:[1,3]}, cls:'good', result:"{name} passed. Kept the friendship simple, at least." },
+      ] },
   ],
   future: [
     { id:'ai_dilemma', brackets:['adult','senior'],
@@ -1479,6 +1527,12 @@ const ERA_MINI_STORIES = {
       choices:[
         { label:'Get the upgrade', effect:{smarts:[3,6], health:[-3,3]}, cls:'', result:"{name} got the upgrade. The recovery week was rough, but the difference after was real." },
         { label:'Pass on it', effect:{happiness:[1,3]}, cls:'good', result:"{name} passed. Not every edge is worth chasing." },
+      ] },
+    { id:'colony_lottery', brackets:['adult','senior'],
+      prompt:"{name}'s name comes up in the lottery for a subsidized slot on the next off-world colony transport — a real chance at something bigger, but a one-way trip.",
+      choices:[
+        { label:'Take the slot', effect:{happiness:[6,10], money:[-20,20]}, cls:'good', result:"{name} took it. Terrifying and exciting in about equal measure — a whole new life ahead." },
+        { label:'Give up the slot', effect:{happiness:[-1,3]}, cls:'', result:"{name} let it go. Some adventures aren't worth what they cost to take." },
       ] },
   ],
 };
@@ -1735,7 +1789,7 @@ const FAQ_ENTRIES = [
 
   // --- Jobs & Careers ---
   { id:'first-job', category:'Jobs & Careers', q:"How do I get my first job?",
-    a:"You're automatically hired the year you turn 18 (unless you're on a college sports track — see Sports & Activities). If your Smarts were built up to 75 or higher by then, you're offered a pick from the era's elite job pool instead of the standard one, with noticeably higher pay.",
+    a:"You're automatically hired the year you turn 18 (unless you're on a college sports track — see Sports & Activities). You're placed into the best job your stats and any completed degree/apprenticeship qualify you for out of three tiers: a no-requirement fallback tier, a standard tier gated by one or two stats, and a desirable tier that usually needs a real stat combination plus a finished degree. Check the Career Board on the Finances tab to see every job in your era and exactly what each one needs.",
     tags:['career','hired','work','18'] },
   { id:'teen-job', category:'Jobs & Careers', q:"Can I work before I'm an adult?",
     a:"Yes — teenagers age 14+ can take the \"Get a part-time job\" action for a lower-paying part-time gig, on top of whatever else they're doing.",
@@ -1749,9 +1803,9 @@ const FAQ_ENTRIES = [
   { id:'switch-job', category:'Jobs & Careers', q:"Can I switch to a better job later?",
     a:"Yes — if your stats or a completed degree/apprenticeship qualify you for a better tier of job than the one you're in, a \"Look for a better job\" action appears. Taking it moves you to a new job (and a new boss and coworker) at the higher tier's pay. It only shows up when there's a genuine step up available — check the Career Board on the Finances tab to see what you already qualify for.",
     tags:['switch job','change job','promotion','better job','career board'] },
-  { id:'elite-jobs', category:'Jobs & Careers', q:"What's the difference between a normal job and an elite job?",
-    a:"Elite jobs (doctor- and attorney-type roles, era-appropriate) only show up as an option at 18 if your Smarts are 75 or higher by then. They pay noticeably more than the standard job pool for that era.",
-    tags:['elite','smarts','career'] },
+  { id:'elite-jobs', category:'Jobs & Careers', q:"What's the difference between a normal job and a desirable job?",
+    a:"Desirable-tier jobs (doctor- and attorney-type roles, era-appropriate) need a real combination of stats — and usually a completed degree or apprenticeship — not just one number crossing a threshold. They pay noticeably more than the standard or fallback tiers for that era. The Career Board on the Finances tab shows exactly what each locked job still needs.",
+    tags:['elite','desirable','smarts','career','degree'] },
   { id:'retirement', category:'Jobs & Careers', q:"What happens at retirement?",
     a:"At 65, if you still have a job, your character automatically retires — the job ends, and so does any second job you're working.",
     tags:['retire','65','pension'] },
@@ -1941,6 +1995,44 @@ function openAchievements(){
       <h2 style="margin-top:0;">Achievements</h2>
       <div class="tree-sub">${unlocked.length} of ${ACHIEVEMENTS.length} unlocked · Bloodline Score: ${computeBloodlineScore().toLocaleString()}</div>
       <div class="ach-list">${rows}</div>
+    </div>`;
+  overlay.style.display = 'flex';
+  document.getElementById('tree-close-btn').onclick = closeFamilyTree;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeFamilyTree(); };
+}
+
+// A player's own totals across every bloodline they've ever played —
+// separate from the achievements/family-tree modals, which are scoped to
+// the current bloodline chain and get wiped on "Start a New Bloodline".
+// This one persists in localStorage across that reset (see playerRecord above).
+const ERA_NAME_BY_ID = {}; // filled in lazily below since ERAS is defined earlier in the file
+function eraNameById(id){
+  if(Object.keys(ERA_NAME_BY_ID).length === 0) ERAS.forEach(e => { ERA_NAME_BY_ID[e.id] = e.name; });
+  return ERA_NAME_BY_ID[id] || id;
+}
+function openMyStats(){
+  const overlay = document.getElementById('tree-overlay');
+  const rec = playerRecord;
+  const achCount = rec.achievementsEver.length;
+  const eraRows = Object.keys(rec.erasPlayed).length
+    ? Object.entries(rec.erasPlayed).sort((a,b)=>b[1]-a[1]).map(([eraId,count])=>
+        `<div class="ach-row"><span class="ach-icon">🕰️</span><span class="ach-body"><span class="ach-label">${escapeHtml(eraNameById(eraId))}</span><span class="ach-desc">${count} life${count===1?'':'s'} played</span></span></div>`
+      ).join('')
+    : `<div class="ach-row"><span class="ach-body"><span class="ach-desc">No completed lives yet — this fills in as characters live out their years.</span></span></div>`;
+  overlay.innerHTML = `
+    <div class="tree-panel">
+      <button class="tree-close" id="tree-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">My Stats</h2>
+      <div class="tree-sub">Your own totals across every bloodline you've played on this device — separate from the current family's achievements and score.</div>
+      <div class="stat-summary" style="margin:14px 0;">
+        <div><div class="val">${rec.livesPlayed}</div><div class="lbl">Lives Played</div></div>
+        <div><div class="val">${rec.bloodlinesStarted}</div><div class="lbl">Bloodlines Started</div></div>
+        <div><div class="val">${rec.longestLifeAge}</div><div class="lbl">Longest Life (age)</div></div>
+        <div><div class="val">${rec.bestScore.toLocaleString()}</div><div class="lbl">Best Bloodline Score</div></div>
+      </div>
+      <div class="tree-sub">${achCount} of ${ACHIEVEMENTS.length} achievements ever earned (across every bloodline, not just the current one)</div>
+      <div class="tree-sub" style="margin-top:10px;">Lives played by era</div>
+      <div class="ach-list">${eraRows}</div>
     </div>`;
   overlay.style.display = 'flex';
   document.getElementById('tree-close-btn').onclick = closeFamilyTree;
@@ -2600,6 +2692,7 @@ function killCharacter(c){
     age:c.age, money:c.money, savings:c.savings||0, debt:outstandingDebt(c), peakStat: topStat(c), causeOfDeath:c.causeOfDeath, highlight: topHighlightText(c),
   });
   trackEvent('life_ended', { bloodlineScore: computeBloodlineScore(), achievementsUnlocked: state.achievementsUnlocked || [] });
+  recordLifeEnded(c);
   cloudAutosave();
   renderDeath(c);
 }
@@ -2927,6 +3020,85 @@ function closeFamilyTree(){
 /* ---------- state ---------- */
 let state = { generation:1, familyLog:[], char:null };
 
+/* ---------- player record: a player's own history, across bloodlines ----------
+   Separate from `state` on purpose — `state` gets wiped every time a new
+   bloodline starts (see "Start a New Bloodline"), but a player's own
+   lifetime totals (how many lives they've played, their best score ever,
+   every achievement they've ever earned across every bloodline) shouldn't
+   reset with it. Stored in localStorage, so it's per-browser/device, same
+   scope as everything else that isn't the optional cloud save. */
+const PLAYER_RECORD_KEY = 'bloodline_player_record';
+function loadPlayerRecord(){
+  const fresh = { livesPlayed:0, bloodlinesStarted:0, bestScore:0, longestLifeAge:0, achievementsEver:[], erasPlayed:{} };
+  try{
+    const raw = localStorage.getItem(PLAYER_RECORD_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      return Object.assign(fresh, parsed, { achievementsEver: parsed.achievementsEver || [], erasPlayed: parsed.erasPlayed || {} });
+    }
+  } catch(e){}
+  return fresh;
+}
+function savePlayerRecord(){
+  try{ localStorage.setItem(PLAYER_RECORD_KEY, JSON.stringify(playerRecord)); } catch(e){}
+}
+let playerRecord = loadPlayerRecord();
+function recordBloodlineStart(){
+  playerRecord.bloodlinesStarted += 1;
+  savePlayerRecord();
+}
+function recordLifeEnded(c){
+  playerRecord.livesPlayed += 1;
+  playerRecord.longestLifeAge = Math.max(playerRecord.longestLifeAge, c.age);
+  playerRecord.bestScore = Math.max(playerRecord.bestScore, computeBloodlineScore());
+  const eraId = ERAS[c.eraIndex].id;
+  playerRecord.erasPlayed[eraId] = (playerRecord.erasPlayed[eraId] || 0) + 1;
+  (state.achievementsUnlocked || []).forEach(id => {
+    if(!playerRecord.achievementsEver.includes(id)) playerRecord.achievementsEver.push(id);
+  });
+  savePlayerRecord();
+}
+
+/* ---------- daily challenge + visit streak ----------
+   Neither needs any backend — both are derived from the date and a bit of
+   localStorage, so they work offline and for guests exactly the same as
+   for signed-in players. The daily challenge is deterministic (same date
+   -> same challenge for everyone), which makes "beat today's challenge"
+   naturally shareable without needing a server round-trip to agree on it. */
+function todayDateString(d){
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function dailyChallenge(){
+  const dateStr = todayDateString();
+  let hash = 0;
+  for(let i=0;i<dateStr.length;i++){ hash = (hash*31 + dateStr.charCodeAt(i)) >>> 0; }
+  return CHALLENGES[hash % CHALLENGES.length];
+}
+// Returns the current streak length (in consecutive days visited, including
+// today) and updates localStorage — safe to call multiple times per day,
+// only advances once per calendar day.
+function updateStreak(){
+  try{
+    const todayStr = todayDateString();
+    const lastStr = localStorage.getItem('bloodline_last_visit');
+    let streak = parseInt(localStorage.getItem('bloodline_streak') || '0', 10) || 0;
+    if(lastStr === todayStr) return streak;
+    if(lastStr){
+      const last = new Date(lastStr + 'T00:00:00');
+      const today = new Date(todayStr + 'T00:00:00');
+      const oneDay = 24*60*60*1000;
+      streak = (today - last === oneDay) ? streak + 1 : 1;
+    } else {
+      streak = 1;
+    }
+    localStorage.setItem('bloodline_last_visit', todayStr);
+    localStorage.setItem('bloodline_streak', String(streak));
+    return streak;
+  } catch(e){ return 0; }
+}
+let currentStreak = 0;
+
 /* ---------- rendering ---------- */
 const setupEl = document.getElementById('screen-setup');
 const gameEl = document.getElementById('screen-game');
@@ -2980,6 +3152,7 @@ function startChallenge(challenge){
     state.char = newCharacter(eraIdx, name, { money: challenge.startMoney, minusStat: challenge.minusStat });
     state.activeChallenge = challenge.id;
     trackEvent('life_started', { era: ERAS[eraIdx].id, challengeId: challenge.id });
+    recordBloodlineStart();
     closeChallengeModal();
     pendingChallenge = null;
     renderGame();
@@ -3006,10 +3179,25 @@ function renderSetup(){
         <button class="btn-secondary" id="dismiss-challenge-btn">No thanks</button>
       </div>
     </div>` : '';
+  // The daily challenge is only shown when there isn't already a shared
+  // challenge link pending — one clear call-to-action at a time, not two
+  // competing challenge banners.
+  const today = dailyChallenge();
+  const dailyBanner = (!pendingChallenge && today) ? `
+    <div class="challenge-banner">
+      <div><strong>🗓️ Today's Challenge:</strong> ${escapeHtml(today.name)} (${ERAS.find(e=>e.id===today.eraId).name})<br>
+      <span style="color:var(--text-dim);font-size:0.85rem;">${escapeHtml(today.tagline)} — same for every player today, so results are actually comparable.</span></div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn-primary" id="accept-daily-btn">Play Today's Challenge</button>
+      </div>
+    </div>` : '';
+  const streakLine = currentStreak >= 2 ? `<p style="color:var(--text-dim);font-size:0.82rem;margin:0 0 8px;">🔥 ${currentStreak}-day streak — you've checked in ${currentStreak} days in a row.</p>` : '';
   setupEl.innerHTML = `
     <h2 style="margin-top:0;">Start a Bloodline</h2>
     <p style="color:var(--text-dim);font-size:0.9rem;">Pick the era your family's story begins in. When this character dies, you'll be able to continue as their child in the next era.</p>
+    ${streakLine}
     ${challengeBanner}
+    ${dailyBanner}
     <div class="era-grid" id="era-grid"></div>
     <label for="name-input">Character name</label>
     <input type="text" id="name-input" placeholder="e.g. Wyatt Calloway" />
@@ -3018,6 +3206,7 @@ function renderSetup(){
       <button class="btn-secondary" id="random-name-btn">Random Name</button>
       <button class="btn-secondary" id="challenge-btn">🎯 Try a Challenge</button>
       <button class="btn-secondary" id="load-save-btn">Load a Save…</button>
+      <button class="btn-secondary" id="my-stats-btn">📊 My Stats</button>
       <button class="btn-secondary" id="faq-btn">❓ Help &amp; FAQ</button>
       ${window.__cloudSaveAvailable ? '<button class="btn-primary" id="cloud-continue-btn">☁️ Continue Your Saved Game</button>' : ''}
     </div>
@@ -3026,7 +3215,11 @@ function renderSetup(){
     document.getElementById('accept-challenge-btn').onclick = ()=> startChallenge(pendingChallenge);
     document.getElementById('dismiss-challenge-btn').onclick = ()=>{ pendingChallenge = null; renderSetup(); };
   }
+  if(!pendingChallenge && today){
+    document.getElementById('accept-daily-btn').onclick = ()=> startChallenge(today);
+  }
   document.getElementById('challenge-btn').onclick = openChallengeModal;
+  document.getElementById('my-stats-btn').onclick = openMyStats;
   document.getElementById('faq-btn').onclick = openFaqModal;
   const grid = document.getElementById('era-grid');
   ERAS.forEach((era, idx)=>{
@@ -3050,6 +3243,7 @@ function renderSetup(){
       state.char = newCharacter(selectedEra, name, null);
       state.activeChallenge = null;
       trackEvent('life_started', { era: ERAS[selectedEra].id });
+      recordBloodlineStart();
       renderGame();
       cloudAutosave();
     });
@@ -3158,6 +3352,7 @@ function renderGame(){
          : state.familyLog.map(f=>`<div>Gen ${f.gen}: <strong>${f.name}</strong> (${f.era}) — lived to ${f.age}, left $${((f.money||0)+(f.savings||0)-(f.debt||0)).toLocaleString()}</div>`).join('') }
       <button class="btn-secondary" id="view-tree-btn" style="margin-top:10px;width:100%;">🌳 View Family Tree</button>
       <button class="btn-secondary" id="view-achievements-btn" style="margin-top:8px;width:100%;">🏆 Achievements (${(state.achievementsUnlocked||[]).length}/${ACHIEVEMENTS.length})</button>
+      <button class="btn-secondary" id="view-my-stats-btn" style="margin-top:8px;width:100%;">📊 My Stats</button>
     </div>`,
   }[activeTab];
 
@@ -3279,6 +3474,8 @@ function renderGame(){
   if(treeBtn) treeBtn.onclick = openFamilyTree;
   const achBtn = document.getElementById('view-achievements-btn');
   if(achBtn) achBtn.onclick = openAchievements;
+  const myStatsBtn = document.getElementById('view-my-stats-btn');
+  if(myStatsBtn) myStatsBtn.onclick = openMyStats;
 }
 
 function renderDeath(c){
@@ -3343,6 +3540,7 @@ function renderDeath(c){
       <div class="btn-row" style="justify-content:center;">
         <button class="btn-secondary" id="view-tree-btn-death">🌳 View Family Tree</button>
         <button class="btn-secondary" id="view-achievements-btn-death">🏆 Achievements</button>
+        <button class="btn-secondary" id="view-my-stats-btn-death">📊 My Stats</button>
         <button class="btn-secondary" id="new-life-btn">Start a New Bloodline</button>
         <button class="btn-secondary" id="load-save-btn-death">Load a Save…</button>
         <button class="btn-secondary" id="feedback-btn-death">💬 Feedback</button>
@@ -3363,6 +3561,7 @@ function renderDeath(c){
   document.getElementById('continue-btn-2').onclick = ()=> continueAs(child2Name, child2Stat);
   document.getElementById('view-tree-btn-death').onclick = openFamilyTree;
   document.getElementById('view-achievements-btn-death').onclick = openAchievements;
+  document.getElementById('view-my-stats-btn-death').onclick = openMyStats;
   document.getElementById('new-life-btn').onclick = ()=>{
     // Wipes the whole family history (tree, achievements, Bloodline Score) —
     // confirm first, since there's no autosave to fall back on.
@@ -3668,6 +3867,7 @@ document.getElementById('load-input').addEventListener('change', handleLoadFile)
 document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeFamilyTree(); closeFeedbackModal(); } });
 
 checkChallengeLink();
+currentStreak = updateStreak();
 initCloud();
 renderSetup();
 </script>
