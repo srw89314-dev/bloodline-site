@@ -236,7 +236,7 @@
   <div id="reaction-overlay" class="story-overlay"></div>
   <div id="faq-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.7.1 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.7.2 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -3668,6 +3668,33 @@ async function loadStatsTeaser(c){
   if(text){ el.textContent = text; el.style.display = 'block'; }
 }
 
+/* ---------- dev mode: keep Sean/Claude testing out of the real player stats ----------
+   Visit with ?dev=1 once to flag this browser as a dev/test device (persisted
+   in localStorage so it sticks across reloads without needing the param every
+   time); visit with ?dev=0 to clear it. While active, trackEvent() below is a
+   full no-op, so nothing from this browser touches totalPlayers/totalSessions/
+   totalLivesStarted/totalDeaths/achievementCounts/eraStarts in the aggregate
+   stats. A small on-screen badge confirms it's on so it's never silently
+   forgotten. This does NOT affect save/load or the identify/feedback calls —
+   only the stats-counting trackEvent() calls. */
+const DEV_MODE = (function(){
+  try{
+    const params = new URLSearchParams(location.search);
+    if(params.has('dev')){
+      if(params.get('dev') === '0') localStorage.removeItem('bloodline_dev');
+      else localStorage.setItem('bloodline_dev', '1');
+    }
+    return localStorage.getItem('bloodline_dev') === '1';
+  } catch(e){ return false; }
+})();
+function showDevBadge(){
+  if(!DEV_MODE) return;
+  const badge = document.createElement('div');
+  badge.textContent = '🛠 DEV MODE — plays not counted in stats (?dev=0 to turn off)';
+  badge.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#7a1fa2;color:#fff;font:600 12px/1.4 system-ui,sans-serif;text-align:center;padding:4px 8px;';
+  document.body.appendChild(badge);
+}
+
 /* ---------- cloud (optional): identity, autosave, play stats, feedback ----------
    Everything here degrades to a silent no-op if the backend isn't deployed
    yet (fetch fails -> caught -> null) or if the player chooses to skip it —
@@ -3696,6 +3723,7 @@ function cloudStatusText(){
 }
 
 function trackEvent(event, data){
+  if(DEV_MODE) return;
   if(!CLOUD.playerId) return;
   cloudPost('track', { playerId: CLOUD.playerId, event, data });
 }
@@ -3893,6 +3921,7 @@ document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeFamilyT
 
 checkChallengeLink();
 currentStreak = updateStreak();
+showDevBadge();
 initCloud();
 renderSetup();
 </script>
