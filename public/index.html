@@ -236,7 +236,7 @@
   <div id="reaction-overlay" class="story-overlay"></div>
   <div id="faq-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.6.3 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.6.4 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -557,6 +557,7 @@ const JOBS = {
   },
 };
 const JOB_TIER_PAY_MULT = { fallback:0.35, standard:0.6, desirable:1.0 };
+const JOB_TIER_RANK = { fallback:0, standard:1, desirable:2 };
 
 function meetsPrereq(c, prereq){
   if(!prereq) return true;
@@ -636,6 +637,7 @@ function assignStandardJob(c){
   const era = ERAS[c.eraIndex];
   const job = bestQualifyingJob(c, era.id);
   c.job = job.title;
+  c.jobTier = job.tier;
   c.salary = Math.round(randInt(...era.moneyRange) * JOB_TIER_PAY_MULT[job.tier] + 20);
   c.jobTenure = 0;
   if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
@@ -1064,6 +1066,7 @@ const BRACKET_ACTIONS = {
      effect:{money:[20,60], happiness:[-2,5]}, requiresJob:true},
     {id:'second_job', label:'Take on a second job', category:'Work', special:'second_job', texts:[], effect:{}},
     {id:'quit_second_job', label:'Quit the second job', category:'Work', special:'quit_second_job', texts:[], effect:{}},
+    {id:'switch_job', label:'Look for a better job', category:'Work', requiresBetterJob:true, special:'switch_job', texts:[], effect:{}},
     {id:'college_athletics', label:'Train and compete for the team', category:'Activities', requiresSportsStage:'college',
      texts:["{name} put in the work at practice.","{name} had a strong showing this season."],
      effect:{health:[6,10], happiness:[4,7], strength:[3,5], agility:[3,5]}},
@@ -1743,6 +1746,9 @@ const FAQ_ENTRIES = [
   { id:'second-job', category:'Jobs & Careers', q:"Should I take on a second job?",
     a:"It's extra income, but not free — every year you're working two jobs, it costs you either Health or Happiness (picked at random, never both at once). It's a real tradeoff, not a strict upgrade. You can quit the second job any year you want to stop paying that cost.",
     tags:['two jobs','second job','side job'] },
+  { id:'switch-job', category:'Jobs & Careers', q:"Can I switch to a better job later?",
+    a:"Yes — if your stats or a completed degree/apprenticeship qualify you for a better tier of job than the one you're in, a \"Look for a better job\" action appears. Taking it moves you to a new job (and a new boss and coworker) at the higher tier's pay. It only shows up when there's a genuine step up available — check the Career Board on the Finances tab to see what you already qualify for.",
+    tags:['switch job','change job','promotion','better job','career board'] },
   { id:'elite-jobs', category:'Jobs & Careers', q:"What's the difference between a normal job and an elite job?",
     a:"Elite jobs (doctor- and attorney-type roles, era-appropriate) only show up as an option at 18 if your Smarts are 75 or higher by then. They pay noticeably more than the standard job pool for that era.",
     tags:['elite','smarts','career'] },
@@ -2205,6 +2211,24 @@ function handleSpecial(c, special, action){
         logEvent(c, `${firstName(c.name)} enrolled in ${choice.label.toLowerCase()} — ${choice.years} years of hard work ahead.`, 'good');
       }
     }
+  } else if(special === 'switch_job'){
+    const best = bestQualifyingJob(c, era.id);
+    const currentRank = JOB_TIER_RANK[c.jobTier || 'fallback'];
+    if(!best || JOB_TIER_RANK[best.tier] <= currentRank){
+      logEvent(c, `${firstName(c.name)} looked around but nothing better turned up this year.`, '');
+    } else {
+      const oldTitle = c.job;
+      c.job = best.title;
+      c.jobTier = best.tier;
+      c.salary = Math.round(randInt(...era.moneyRange) * JOB_TIER_PAY_MULT[best.tier] + 20);
+      c.jobTenure = 0;
+      // New job, new employer — the old boss/coworker are left behind.
+      relsByRole(c,'boss').forEach(r => r.active = false);
+      relsByRole(c,'coworker').forEach(r => r.active = false);
+      addRelationship(c, 'boss', pick(BOSS_NAMES));
+      addRelationship(c, 'coworker', firstNameForEra(era.id)+' '+pick(LAST_NAMES));
+      logEvent(c, `${firstName(c.name)} left the ${oldTitle} job behind and landed a real step up as a ${best.title}.`, 'good', true);
+    }
   } else if(special === 'quit_second_job' && c.secondJob){
     logEvent(c, `${firstName(c.name)} quit the second job as a ${c.secondJob} — one less thing to juggle.`, '');
     c.secondJob = null; c.secondSalary = 0;
@@ -2293,6 +2317,18 @@ function buildActionMenu(c){
     if(def.special === 'second_job' && (!c.job || c.secondJob)) return;
     if(def.special === 'quit_second_job' && !c.secondJob) return;
     if(def.special === 'enroll_degree' && (c.enrolled || !degreeOptionsAvailable(c, era.id))) return;
+    if(def.requiresBetterJob){
+      // Only offered once there's a real qualifying job that beats the one
+      // the character already has — stats/degrees earned since hiring can
+      // open up a better tier, and this is how the player can actually act
+      // on that instead of being stuck with whatever they were assigned at
+      // 18. Not offered to the unemployed (that's the standard hire path)
+      // or while enrolled full-time in training.
+      if(!c.job || c.enrolled) return;
+      const best = bestQualifyingJob(c, era.id);
+      const currentRank = JOB_TIER_RANK[c.jobTier || 'fallback'];
+      if(!best || JOB_TIER_RANK[best.tier] <= currentRank) return;
+    }
     if(def.requiresSportsStage && c.sportsStage !== def.requiresSportsStage) return;
     if(def.minAge && c.age < def.minAge) return;
     // minSmarts/minImagination: content that only opens up once a character
