@@ -236,7 +236,7 @@
   <div id="reaction-overlay" class="story-overlay"></div>
   <div id="faq-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.7.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.7.1 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -2721,6 +2721,26 @@ function topShareHighlights(c, n){
   return legendaryHighlights.concat(otherHighlights).slice(0, n);
 }
 
+// One-tap public share links — X/Twitter and Reddit's own "intent"/"submit"
+// URLs open a pre-filled compose window in a new tab; the player still has
+// to review and hit post themselves, nothing is posted automatically. This
+// exists because the only share option before this was "copy to clipboard,"
+// which is real friction between a good death and an actual public post.
+function socialShareContent(c){
+  const era = ERAS[c.eraIndex];
+  const challenge = state.activeChallenge ? CHALLENGES.find(ch=>ch.id===state.activeChallenge) : null;
+  const url = challenge ? challengeShareUrl(challenge.id) : 'https://playbloodline.netlify.app';
+  const text = `${firstName(c.name)} lived to ${c.age} in ${era.name} and died of ${c.causeOfDeath}. 🩸 Bloodline — play free:`;
+  return { text, url };
+}
+function socialShareUrls(c){
+  const { text, url } = socialShareContent(c);
+  return {
+    twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+    reddit: `https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(text)}`,
+  };
+}
+
 function generateShareText(c){
   const era = ERAS[c.eraIndex];
   const highlights = topShareHighlights(c, 3);
@@ -3494,6 +3514,7 @@ function renderDeath(c){
   const STAT_LABEL_MAP = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',imagination:'Imagination',strength:'Strength',agility:'Agility'};
   const statLabel = STAT_LABEL_MAP[bonusStat];
   const shareText = generateShareText(c);
+  const socialUrls = socialShareUrls(c);
   const activeChallengeObj = state.activeChallenge ? CHALLENGES.find(ch=>ch.id===state.activeChallenge) : null;
 
   // Two candidate children to choose from at the handoff — real branching, so
@@ -3530,6 +3551,10 @@ function renderDeath(c){
           <button class="btn-secondary" id="copy-share-btn">Copy to Clipboard</button>
           <button class="btn-secondary" id="download-image-btn">Download Image</button>
           ${activeChallengeObj ? '<button class="btn-secondary" id="copy-challenge-link-btn">Copy Challenge Link</button>' : ''}
+        </div>
+        <div class="btn-row" style="justify-content:center;margin-top:8px;">
+          <a class="btn-secondary" id="share-x-link" href="${escapeHtml(socialUrls.twitter)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">Share to X</a>
+          <a class="btn-secondary" id="share-reddit-link" href="${escapeHtml(socialUrls.reddit)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">Share to Reddit</a>
         </div>
       </div>
 
