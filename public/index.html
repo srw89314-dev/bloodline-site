@@ -191,6 +191,17 @@
   .credit-section h4{ margin:0 0 6px; color:var(--text-dim); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; }
   .loans-list{ font-size:0.78rem; color:var(--text-dim); line-height:1.6; margin-top:4px; }
 
+  /* career board */
+  .career-section{ margin-top:18px; }
+  .career-section h4{ margin:0 0 8px; color:var(--text-dim); font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; }
+  .training-status{ font-size:0.8rem; color:var(--accent); margin-bottom:10px; }
+  .job-tier{ margin-bottom:10px; }
+  .job-tier h5{ margin:0 0 4px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); opacity:0.8; }
+  .job-row{ display:flex; justify-content:space-between; gap:8px; font-size:0.78rem; padding:3px 0; }
+  .job-row .job-req{ color:var(--text-dim); text-align:right; }
+  .job-row.locked{ opacity:0.55; }
+  .job-row.current{ color:var(--accent); font-weight:600; }
+
   /* help & FAQ */
   .faq-panel{ max-width:640px; max-height:82vh; display:flex; flex-direction:column; }
   .faq-panel #faq-search-input{ margin:12px 0 10px; flex-shrink:0; }
@@ -293,32 +304,304 @@ const PET_SPECIES = {
 const TEACHER_NAMES = ['Mr. Aldridge','Mrs. Petrova','Ms. Kwan','Mr. Osei','Mrs. Lindqvist','Mr. Alvarez'];
 const BOSS_NAMES = ['Ms. Renner','Mr. Douglas','Mrs. Ibarra','Mr. Choi','Ms. Fontaine'];
 
-const JOB_TITLES = {
-  wildwest:['Ranch Hand','Blacksmith','Shopkeeper','Prospector','Telegraph Operator'],
-  twenties:['Factory Worker','Speakeasy Manager','Typist','Salesman','Railway Clerk'],
-  postwar:['Factory Foreman','Schoolteacher','Office Clerk','Salesman','Engineer'],
-  modern:['Software Tester','Barista','Marketing Coordinator','Nurse','Delivery Driver'],
-  future:['AI Systems Overseer','Orbital Logistics Tech','Climate Engineer','Bio-Fabricator','Remote Data Analyst'],
+/* ---------- education & training: apprenticeships / degrees ----------
+   Wild West and Twenties use era-appropriate "training" (apprenticeships/
+   mentorships); Postwar onward uses real college degrees. Enrolling costs
+   real years (no full-time income while enrolled) and real tuition money
+   up front, and whether the character actually finishes depends on a
+   pass-chance roll influenced by Smarts — so it's a genuine risk, not a
+   guaranteed unlock. A failed attempt can be retried after a cooldown. */
+const DEGREE_TYPES = {
+  wildwest: [
+    { id:'ww_blacksmith', label:'Blacksmithing apprenticeship', years:2, cost:30, minAge:14 },
+    { id:'ww_law', label:'Law apprenticeship', years:3, cost:60, minAge:16 },
+    { id:'ww_medicine', label:'Medicine apprenticeship', years:3, cost:70, minAge:16 },
+    { id:'ww_journalism', label:'Newspaper apprenticeship', years:2, cost:35, minAge:14 },
+  ],
+  twenties: [
+    { id:'tw_law', label:'Law apprenticeship', years:3, cost:150, minAge:17 },
+    { id:'tw_medicine', label:'Medicine apprenticeship', years:3, cost:180, minAge:17 },
+    { id:'tw_journalism', label:'Journalism apprenticeship', years:2, cost:90, minAge:15 },
+    { id:'tw_engineering', label:'Engineering apprenticeship', years:3, cost:160, minAge:17 },
+    { id:'tw_finance', label:'Finance apprenticeship', years:2, cost:140, minAge:17 },
+  ],
+  postwar: [
+    { id:'pw_medicine', label:'Medicine degree', years:4, cost:900, minAge:18 },
+    { id:'pw_law', label:'Law degree', years:4, cost:800, minAge:18 },
+    { id:'pw_business', label:'Business degree', years:4, cost:600, minAge:18 },
+    { id:'pw_engineering', label:'Engineering degree', years:4, cost:700, minAge:18 },
+    { id:'pw_education', label:'Education degree', years:4, cost:500, minAge:18 },
+  ],
+  modern: [
+    { id:'md_medicine', label:'Medicine degree', years:4, cost:12000, minAge:18 },
+    { id:'md_law', label:'Law degree', years:4, cost:11000, minAge:18 },
+    { id:'md_business', label:'Business degree', years:4, cost:8000, minAge:18 },
+    { id:'md_cs', label:'Computer Science degree', years:4, cost:9000, minAge:18 },
+    { id:'md_design', label:'Design degree', years:4, cost:7000, minAge:18 },
+  ],
+  future: [
+    { id:'nf_medicine', label:'Medicine degree', years:4, cost:9000, minAge:18 },
+    { id:'nf_law', label:'Systems Law degree', years:4, cost:8500, minAge:18 },
+    { id:'nf_engineering', label:'Systems/AI Engineering degree', years:4, cost:9500, minAge:18 },
+    { id:'nf_design', label:'Design degree', years:4, cost:7000, minAge:18 },
+    { id:'nf_business', label:'Xeno-Business degree', years:4, cost:7500, minAge:18 },
+  ],
 };
-const TEEN_JOB_TITLES = {
-  wildwest:['Stable Hand','Errand Runner','General Store Sweeper'],
-  twenties:['Newsboy/Newsgirl','Soda Fountain Clerk','Delivery Runner'],
-  postwar:['Soda Jerk','Grocery Bagger','Lawn Mowing Route'],
-  modern:['Fast Food Crew','Retail Associate','Lawn Mowing Gig'],
-  future:['Drone Delivery Pilot','App-Based Micro-Tasker','Vertical Farm Hand'],
+const DEGREE_COOLDOWN_YEARS = 3;
+function degreeById(id){
+  for(const eraId in DEGREE_TYPES){ const found = DEGREE_TYPES[eraId].find(d=>d.id===id); if(found) return found; }
+  return null;
+}
+function hasDegree(c, id){ return (c.degrees||[]).includes(id); }
+function degreeOnCooldown(c, id){ return c.degreeCooldowns && c.degreeCooldowns[id] != null && c.age < c.degreeCooldowns[id]; }
+function degreeOptionsAvailable(c, eraId){
+  return (DEGREE_TYPES[eraId]||[]).some(d => c.age >= d.minAge && !hasDegree(c,d.id) && !degreeOnCooldown(c,d.id));
+}
+// Base 55% pass chance, plus up to +40% from Smarts (100 smarts -> 95% pass).
+function degreePassChance(c){ return clamp(55 + (c.stats.smarts||0) * 0.4, 5, 95) / 100; }
+function processEnrollment(c){
+  if(!c.enrolled) return;
+  c.enrolled.yearsLeft -= 1;
+  if(c.enrolled.yearsLeft > 0) return;
+  const deg = degreeById(c.enrolled.id);
+  const passed = Math.random() < degreePassChance(c);
+  if(passed){
+    c.degrees = c.degrees || [];
+    c.degrees.push(c.enrolled.id);
+    logEvent(c, `${firstName(c.name)} completed the ${deg.label} — a real credential, and doors that were closed just opened.`, 'good', true);
+  } else {
+    c.degreeCooldowns = c.degreeCooldowns || {};
+    c.degreeCooldowns[c.enrolled.id] = c.age + DEGREE_COOLDOWN_YEARS;
+    logEvent(c, `${firstName(c.name)} didn't make it through the ${deg.label} — all that time and money, and it didn't pan out. Might be worth trying again in a few years.`, 'bad');
+  }
+  c.enrolled = null;
+  // Whether it worked out or not, training is over — time to go earn a
+  // living again (a passed credential means assignStandardJob can now pick
+  // from the desirable tier it unlocks; a failed attempt just goes back to
+  // whatever the character otherwise qualifies for).
+  if(c.age < 18){
+    const era = ERAS[c.eraIndex];
+    const job = bestQualifyingTeenJob(c, era.id);
+    c.job = job.title; c.salary = randInt(8,25);
+    if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
+    logEvent(c, `${firstName(c.name)} put the training to use with a part-time job as a ${job.title}.`, '');
+  } else if(!c.sportsStage || c.sportsStage === 'school'){
+    const { title, tier } = assignStandardJob(c);
+    const verb = tier === 'desirable' ? 'landed a real career as a' : 'took a job as a';
+    logEvent(c, `${firstName(c.name)} ${verb} ${title}.`, tier === 'desirable' ? 'good' : '');
+  }
+}
+
+/* ---------- job pool: fallback / standard / desirable, per era ----------
+   Every era spans a real range: a no-prerequisite fallback tier so no one
+   is ever without an option, a standard tier gated by one or two stats, and
+   a desirable tier gated by a real stat combination and often a completed
+   degree/apprenticeship — the "some people land amazing jobs, others are
+   stuck with undesirable ones" spread Sean asked for. Pay multiplier is
+   applied against the era's average salary range per tier. */
+const JOBS = {
+  wildwest: {
+    teen: [
+      { title:'General Store Sweeper', prereq:{} },
+      { title:'Stable Hand', prereq:{str:25} },
+      { title:'Errand Runner', prereq:{agi:25} },
+      { title:'Newspaper Delivery Boy', prereq:{agi:30} },
+      { title:"Tutor's Assistant", prereq:{smt:40} },
+    ],
+    fallback: [
+      { title:'Ditch Digger', prereq:{} },
+      { title:'Dishwasher', prereq:{} },
+      { title:'Laundry Hand', prereq:{} },
+    ],
+    standard: [
+      { title:'Ranch Hand', prereq:{str:40} },
+      { title:'Blacksmith', prereq:{str:55, degree:'ww_blacksmith'} },
+      { title:'Shopkeeper', prereq:{} },
+      { title:'Prospector', prereq:{str:35, agi:30} },
+      { title:'Telegraph Operator', prereq:{smt:45} },
+      { title:'Saloon Entertainer', prereq:{lks:50, img:40} },
+      { title:'Wagon Driver', prereq:{agi:40} },
+    ],
+    desirable: [
+      { title:'Attorney', prereq:{smt:65, degree:'ww_law'} },
+      { title:'Town Doctor', prereq:{smt:60, degree:'ww_medicine'} },
+      { title:'Newspaper Editor', prereq:{smt:55, img:45, degree:'ww_journalism'} },
+      { title:'Land Surveyor', prereq:{smt:55, agi:45} },
+      { title:'Railroad Foreman', prereq:{str:60, smt:40} },
+      { title:'Bank Manager', prereq:{smt:65, lks:40} },
+    ],
+  },
+  twenties: {
+    teen: [
+      { title:'Newsboy', prereq:{} },
+      { title:'Soda Jerk', prereq:{agi:25} },
+      { title:'Factory Runner', prereq:{str:25} },
+      { title:'Speakeasy Coat Check', prereq:{lks:35} },
+      { title:"Bookkeeper's Assistant", prereq:{smt:40} },
+    ],
+    fallback: [
+      { title:'Street Sweeper', prereq:{} },
+      { title:'Dockworker', prereq:{} },
+      { title:'Laundromat Attendant', prereq:{} },
+    ],
+    standard: [
+      { title:'Factory Line Worker', prereq:{str:40} },
+      { title:'Delivery Driver', prereq:{agi:40} },
+      { title:'Department Store Clerk', prereq:{lks:35} },
+      { title:'Jazz Club Musician', prereq:{img:55, lks:40} },
+      { title:'Switchboard Operator', prereq:{agi:35, smt:35} },
+      { title:'Bootlegger', prereq:{agi:45, str:35} },
+    ],
+    desirable: [
+      { title:'Attorney', prereq:{smt:65, degree:'tw_law'} },
+      { title:'Physician', prereq:{smt:60, degree:'tw_medicine'} },
+      { title:'Newspaper Editor', prereq:{img:50, smt:50, degree:'tw_journalism'} },
+      { title:'Structural Engineer', prereq:{smt:60, str:40, degree:'tw_engineering'} },
+      { title:'Stockbroker', prereq:{smt:65, degree:'tw_finance'} },
+      { title:'Silent Film Star', prereq:{lks:65, img:55} },
+    ],
+  },
+  postwar: {
+    teen: [
+      { title:'Paperboy', prereq:{} },
+      { title:'Soda Fountain Clerk', prereq:{agi:25} },
+      { title:'Lawn Mowing Service', prereq:{str:30} },
+      { title:'Babysitter', prereq:{smt:30} },
+      { title:'Record Store Clerk', prereq:{img:30} },
+    ],
+    fallback: [
+      { title:'Janitor', prereq:{} },
+      { title:'Diner Dishwasher', prereq:{} },
+      { title:'Warehouse Stocker', prereq:{} },
+    ],
+    standard: [
+      { title:'Factory Assembly Worker', prereq:{str:40} },
+      { title:'Bus Driver', prereq:{agi:40} },
+      { title:'Secretary', prereq:{smt:40, lks:35} },
+      { title:'Salesman', prereq:{lks:45, img:35} },
+      { title:'Electrician', prereq:{str:40, smt:40} },
+      { title:'Police Officer', prereq:{str:50, agi:45} },
+    ],
+    desirable: [
+      { title:'Physician', prereq:{smt:65, degree:'pw_medicine'} },
+      { title:'Attorney', prereq:{smt:65, degree:'pw_law'} },
+      { title:'Corporate Executive', prereq:{smt:55, lks:45, degree:'pw_business'} },
+      { title:'Civil Engineer', prereq:{smt:60, str:35, degree:'pw_engineering'} },
+      { title:'School Principal', prereq:{smt:55, degree:'pw_education'} },
+      { title:'Advertising Creative Director', prereq:{img:60, lks:40, degree:'pw_business'} },
+    ],
+  },
+  modern: {
+    teen: [
+      { title:'Fast Food Crew', prereq:{} },
+      { title:'Retail Cashier', prereq:{lks:25} },
+      { title:'Lifeguard', prereq:{str:35, agi:35} },
+      { title:'Tutoring Gig', prereq:{smt:40} },
+      { title:'Social Media Content Creator', prereq:{img:40} },
+    ],
+    fallback: [
+      { title:'Retail Associate', prereq:{} },
+      { title:'Delivery/Rideshare Driver', prereq:{} },
+      { title:'Warehouse Picker', prereq:{} },
+    ],
+    standard: [
+      { title:'Construction Worker', prereq:{str:45} },
+      { title:'Personal Trainer', prereq:{str:45, agi:45} },
+      { title:'Office Administrator', prereq:{smt:40} },
+      { title:'Graphic Designer', prereq:{img:50} },
+      { title:'Real Estate Agent', prereq:{lks:45, smt:35} },
+      { title:'IT Support Technician', prereq:{smt:45} },
+    ],
+    desirable: [
+      { title:'Physician', prereq:{smt:65, degree:'md_medicine'} },
+      { title:'Corporate Lawyer', prereq:{smt:65, degree:'md_law'} },
+      { title:'Software Engineer', prereq:{smt:60, degree:'md_cs'} },
+      { title:'Management Consultant', prereq:{smt:55, lks:45, degree:'md_business'} },
+      { title:'UX/Product Designer', prereq:{img:55, smt:40, degree:'md_design'} },
+      { title:'Startup Founder', prereq:{smt:60, img:55, degree:'md_business'} },
+    ],
+  },
+  future: {
+    teen: [
+      { title:'Drone Delivery Assistant', prereq:{agi:30} },
+      { title:'VR Content Tester', prereq:{img:30} },
+      { title:'AI Tutoring Bot Trainer', prereq:{smt:35} },
+      { title:'Vertical Farm Hand', prereq:{str:30} },
+      { title:'Livestream Micro-Influencer', prereq:{lks:35, img:35} },
+    ],
+    fallback: [
+      { title:'Gig-App Task Runner', prereq:{} },
+      { title:'Automated-Warehouse Monitor', prereq:{} },
+      { title:'Recycling Sort Technician', prereq:{} },
+    ],
+    standard: [
+      { title:'Orbital Construction Rigger', prereq:{str:55, agi:40} },
+      { title:'Drone Logistics Pilot', prereq:{agi:50, smt:40} },
+      { title:'Climate Remediation Technician', prereq:{str:40, smt:40} },
+      { title:'AI Systems Support Rep', prereq:{smt:45} },
+      { title:'Synthetic Media Editor', prereq:{img:50} },
+      { title:'Personal Brand Manager', prereq:{lks:50, img:40} },
+    ],
+    desirable: [
+      { title:'Physician', prereq:{smt:65, degree:'nf_medicine'} },
+      { title:'Systems Law Attorney', prereq:{smt:65, degree:'nf_law'} },
+      { title:'AI Systems Architect', prereq:{smt:65, img:45, degree:'nf_engineering'} },
+      { title:'Orbital Habitat Designer', prereq:{img:60, smt:45, degree:'nf_design'} },
+      { title:'Xeno-Business Executive', prereq:{smt:55, lks:45, degree:'nf_business'} },
+      { title:'Neural Interface Surgeon', prereq:{smt:75, agi:50, degree:'nf_medicine'} },
+    ],
+  },
 };
-// A higher-paying career track that opens up at adulthood for characters who
-// built up real smarts as a kid/teen — the concrete version of "smarts should
-// gate a widening range of opportunities" rather than just being a stat that
-// climbs in isolation.
-const ELITE_JOB_TITLES = {
-  wildwest:['Assayer','Attorney','Newspaper Editor','Land Surveyor'],
-  twenties:['Attorney','Physician','Bank Manager','Investigative Journalist'],
-  postwar:['Civil Engineer','Physician','Attorney','University Instructor'],
-  modern:['Software Engineer','Physician','Attorney','Data Scientist'],
-  future:['Quantum Systems Architect','Orbital Physician','AI Ethicist','Terraform Engineer'],
-};
-const ELITE_JOB_SMARTS_THRESHOLD = 75;
+const JOB_TIER_PAY_MULT = { fallback:0.35, standard:0.6, desirable:1.0 };
+
+function meetsPrereq(c, prereq){
+  if(!prereq) return true;
+  if(prereq.str && (c.stats.strength||0) < prereq.str) return false;
+  if(prereq.agi && (c.stats.agility||0) < prereq.agi) return false;
+  if(prereq.smt && (c.stats.smarts||0) < prereq.smt) return false;
+  if(prereq.img && (c.stats.imagination||0) < prereq.img) return false;
+  if(prereq.lks && (c.stats.looks||0) < prereq.lks) return false;
+  if(prereq.age && c.age < prereq.age) return false;
+  if(prereq.degree && !hasDegree(c, prereq.degree)) return false;
+  return true;
+}
+function prereqText(prereq){
+  if(!prereq || Object.keys(prereq).length === 0) return 'No requirements';
+  const parts = [];
+  if(prereq.str) parts.push(`Strength ${prereq.str}+`);
+  if(prereq.agi) parts.push(`Agility ${prereq.agi}+`);
+  if(prereq.smt) parts.push(`Smarts ${prereq.smt}+`);
+  if(prereq.img) parts.push(`Imagination ${prereq.img}+`);
+  if(prereq.lks) parts.push(`Looks ${prereq.lks}+`);
+  if(prereq.age) parts.push(`Age ${prereq.age}+`);
+  if(prereq.degree){ const d = degreeById(prereq.degree); parts.push(d ? d.label : prereq.degree); }
+  return parts.join(', ');
+}
+// Picks the best job the character currently qualifies for (desirable over
+// standard over fallback), randomizing among ties so two characters who
+// both qualify for the top tier don't always land the exact same title.
+function bestQualifyingJob(c, eraId){
+  const pool = JOBS[eraId];
+  if(!pool) return null;
+  for(const tier of ['desirable','standard','fallback']){
+    const qualifying = (pool[tier]||[]).filter(j => meetsPrereq(c, j.prereq));
+    if(qualifying.length) return { ...pick(qualifying), tier };
+  }
+  return { title:'Odd Jobs', tier:'fallback', prereq:{} };
+}
+function bestQualifyingTeenJob(c, eraId){
+  const pool = (JOBS[eraId]||{}).teen || [];
+  const qualifying = pool.filter(j => meetsPrereq(c, j.prereq));
+  return qualifying.length ? pick(qualifying) : { title:'Odd Jobs', prereq:{} };
+}
+// Second jobs stay unrestricted by design (Sean's call — it's a hustle, not
+// a specialization) — picks from every job in the era regardless of prereqs.
+function anyJobTitle(eraId){
+  const pool = JOBS[eraId];
+  if(!pool) return 'Odd Jobs';
+  const all = [...(pool.fallback||[]), ...(pool.standard||[]), ...(pool.desirable||[])];
+  return pick(all).title;
+}
 
 /* ---------- career ladder: raises & second jobs ----------
    Salary isn't static once you're hired — it grows every year on the job,
@@ -347,15 +630,13 @@ function applyJobRaise(c){
 // didn't work out" fallback, so both paths stay in sync.
 function assignStandardJob(c){
   const era = ERAS[c.eraIndex];
-  const highSmarts = (c.stats.smarts||0) >= ELITE_JOB_SMARTS_THRESHOLD;
-  const titlePool = highSmarts ? (ELITE_JOB_TITLES[era.id] || JOB_TITLES[era.id]) : JOB_TITLES[era.id];
-  const title = pick(titlePool);
-  c.job = title;
-  c.salary = Math.round(randInt(...era.moneyRange) * (highSmarts ? 0.9 : 0.6) + 20);
+  const job = bestQualifyingJob(c, era.id);
+  c.job = job.title;
+  c.salary = Math.round(randInt(...era.moneyRange) * JOB_TIER_PAY_MULT[job.tier] + 20);
   c.jobTenure = 0;
   if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
   addRelationship(c, 'coworker', firstNameForEra(era.id)+' '+pick(LAST_NAMES));
-  return { title, highSmarts };
+  return { title: job.title, tier: job.tier, highSmarts: job.tier === 'desirable' };
 }
 const SECOND_JOB_HEALTH_COST = [2,5];
 const SECOND_JOB_HAPPINESS_COST = [2,5];
@@ -677,7 +958,12 @@ const BRACKET_ACTIONS = {
      effect:{smarts:[2,5], happiness:[2,5], imagination:[2,4]}},
     {id:'watch_cartoons', label:'Watch cartoons', category:'Play',
      texts:["{name} watched the same episode three times and loved it every time.","{name} sang along to the theme song."],
-     effect:{happiness:[3,6]}},
+     effect:{happiness:[3,6]},
+     // TV cartoons are a Postwar-onward thing — no home television before then.
+     eraOverrides:{
+       wildwest:{ label:'Listen to a tall tale', texts:["{name} asked for the same tall tale again.","{name} acted out the story with a stick horse afterward."] },
+       twenties:{ label:'Listen to the radio', texts:["{name} sat right up against the radio, transfixed.","{name} hummed the tune from the radio programme all day."] },
+     }},
     {id:'splash_puddle', label:'Splash in a puddle', category:'Play',
      texts:["{name} found the biggest puddle in the yard.","{name} soaked their socks completely."],
      effect:{happiness:[5,8]}},
@@ -694,13 +980,16 @@ const BRACKET_ACTIONS = {
      effect:{smarts:[6,11]}},
     {id:'join_sport', label:'Join a sports team', category:'Activities',
      texts:["{name} scored a goal for the first time.","{name} is getting stronger every practice.","{name} rode the bench but cheered loudly anyway."],
-     effect:{health:[5,9], happiness:[4,7]}},
+     effect:{health:[5,9], happiness:[4,7], strength:[2,4], agility:[2,4]}},
     {id:'join_arts', label:'Join an art or music class', category:'Activities',
      texts:["{name} painted something they're actually proud of.","{name} learned three new chords."],
      effect:{happiness:[5,9], smarts:[2,4], imagination:[4,8]}},
     {id:'martial_arts', label:'Take a martial arts class', category:'Activities',
      texts:["{name} earned a new belt.","{name} learned to fall without getting hurt."],
-     effect:{health:[5,9], happiness:[3,5]}},
+     effect:{health:[5,9], happiness:[3,5], strength:[2,3], agility:[2,3]},
+     // Belt-ranked martial arts schools weren't a thing in the American West
+     // yet — boxing/wrestling lessons are the period-honest equivalent.
+     eraOverrides:{ wildwest:{ label:'Take boxing lessons', texts:["{name} is getting quick with their fists.","{name} learned to take a hit without flinching."] } }},
     {id:'chores', label:'Do chores for allowance', category:'Money',
      texts:["{name} did every chore on the list.","{name} negotiated a slightly better allowance."],
      effect:{money:[5,12], happiness:[-1,2]}},
@@ -723,16 +1012,22 @@ const BRACKET_ACTIONS = {
      effect:{smarts:[6,11]}},
     {id:'varsity', label:'Join a varsity sport', category:'Activities',
      texts:["{name} made varsity.","{name} had a breakout game this season."],
-     effect:{health:[6,10], happiness:[4,7]}},
+     effect:{health:[6,10], happiness:[4,7], strength:[3,6], agility:[3,6]},
+     // "varsity" is a turn-of-the-20th-century-onward term for organized
+     // school athletics — swap in period-honest wording for the Wild West,
+     // where that kind of formal school sports program didn't really exist.
+     eraOverrides:{ wildwest:{ label:'Join in the town games', texts:["{name} held their own at the town games.","{name} is getting a real reputation at the county fair contests."] } }},
     {id:'band_arts', label:'Join band or the arts program', category:'Activities',
      texts:["{name} landed a solo.","{name} got into the school showcase."],
      effect:{happiness:[5,9], smarts:[2,4], imagination:[3,6]}},
     {id:'martial_arts_t', label:'Train in martial arts', category:'Activities',
      texts:["{name} tested for a new belt.","{name} is getting seriously disciplined about training."],
-     effect:{health:[6,10], happiness:[3,5]}},
+     effect:{health:[6,10], happiness:[3,5], strength:[3,5], agility:[3,5]},
+     eraOverrides:{ wildwest:{ label:'Train in boxing', texts:["{name} tested their nerve against a tough sparring partner.","{name} is getting seriously disciplined about training."] } }},
     {id:'workout', label:'Hit the gym', category:'Health',
      texts:["{name} is noticeably stronger this year.","{name} actually stuck with a routine."],
-     effect:{health:[5,9], looks:[3,6]}},
+     effect:{health:[5,9], looks:[3,6], strength:[4,7], agility:[2,4]},
+     eraOverrides:{ wildwest:{ label:'Put in hard physical labor', texts:["{name} is noticeably stronger this year.","{name} actually stuck with a routine of chopping wood and hauling water."] } }},
     {id:'throw_party', label:'Throw a party', category:'Social', cost:20,
      texts:["The party was legendary.","Word got around — {name}'s parties are the ones to go to."],
      effect:{happiness:[8,13], closeness:0}},
@@ -742,6 +1037,7 @@ const BRACKET_ACTIONS = {
     {id:'part_time_job', label:'Get a part-time job', category:'Money', minAge:14, special:'teen_job',
      texts:["{name} landed a part-time gig."],
      effect:{}},
+    {id:'enroll_degree_t', label:'Pursue an apprenticeship/training', category:'School', minAge:14, special:'enroll_degree', texts:[], effect:{}},
     {id:'side_hustle_t', label:'Start a small side hustle', category:'Money',
      texts:["{name}'s little business actually turned a profit.","{name} hustled hard this year."],
      effect:{money:[15,45], happiness:[1,3]}},
@@ -766,25 +1062,33 @@ const BRACKET_ACTIONS = {
     {id:'quit_second_job', label:'Quit the second job', category:'Work', special:'quit_second_job', texts:[], effect:{}},
     {id:'college_athletics', label:'Train and compete for the team', category:'Activities', requiresSportsStage:'college',
      texts:["{name} put in the work at practice.","{name} had a strong showing this season."],
-     effect:{health:[6,10], happiness:[4,7]}},
+     effect:{health:[6,10], happiness:[4,7], strength:[3,5], agility:[3,5]}},
     {id:'pro_athletics', label:'Train and compete professionally', category:'Activities', requiresSportsStage:'pro',
      texts:["{name} put in the work at practice.","{name} had a strong showing this season."],
-     effect:{health:[4,8], happiness:[3,6]}},
+     effect:{health:[4,8], happiness:[3,6], strength:[3,5], agility:[3,5]}},
     {id:'side_hustle_a', label:'Pick up a side hustle', category:'Money',
      texts:["The side gig brought in solid extra cash.","{name} is getting good at balancing two things at once."],
      effect:{money:[25,70], health:[-2,0]}},
     {id:'hit_gym_a', label:'Hit the gym', category:'Health',
      texts:["{name} is in the best shape in years.","{name} actually kept the New Year's resolution this time."],
-     effect:{health:[5,9], looks:[2,5]}},
+     effect:{health:[5,9], looks:[2,5], strength:[3,6], agility:[2,4]},
+     eraOverrides:{ wildwest:{ label:'Keep up hard physical work', texts:["{name} is in the best shape in years.","{name} actually kept up with it, dawn to dusk."] } }},
     {id:'take_class', label:'Take a class', category:'Growth', cost:40,
      texts:["{name} picked up a genuinely useful new skill.","The class was tough but worth it."],
      effect:{smarts:[6,10]}},
+    {id:'enroll_degree_a', label:'Enroll in a degree/training program', category:'Growth', minAge:18, special:'enroll_degree', texts:[], effect:{}},
     {id:'volunteer_a', label:'Volunteer', category:'Growth',
      texts:["{name} put in real time helping the community.","It felt good to give back this year."],
      effect:{happiness:[5,8], imagination:[1,3]}},
     {id:'travel', label:'Take a weekend trip', category:'Growth', cost:60,
      texts:["{name} needed that trip more than they realized.","A change of scenery did wonders."],
-     effect:{happiness:[9,14], imagination:[2,5]}},
+     effect:{happiness:[9,14], imagination:[2,5]},
+     // The 2-day "weekend" as free time didn't become standard until the
+     // late 1920s/1930s — earlier eras just get "a trip."
+     eraOverrides:{
+       wildwest:{ label:'Take a trip out of town' },
+       twenties:{ label:'Take a trip out of town' },
+     }},
     {id:'creative_project', label:'Pursue a creative passion project', category:'Growth', minImagination:60,
      texts:["{name}'s imagination finally found a real outlet — and it actually earned some money.","{name} poured themselves into a passion project that turned out better than expected."],
      effect:{money:[40,110], happiness:[6,10]}},
@@ -841,6 +1145,7 @@ const ERA_BRACKET_ACTIONS = {
 
 /* ---------- world events (uncontrollable, expanded pools) ---------- */
 function worldEventPool(eraId, bracket){
+  const eraIndex = ERAS.findIndex(e=>e.id===eraId);
   const generic = {
     infant:[
       {t:"{name} slept through the night for the first time, and the whole household throws a small party over it.", e:{happiness:3}},
@@ -852,13 +1157,14 @@ function worldEventPool(eraId, bracket){
     ], toddler:[
       {t:"{name} declared war on the dog's water bowl and lost.", e:{health:-6}},
       {t:"{name} decided the dog's water bowl was the single most fascinating object in the house.", e:{happiness:3}},
-      {t:"{name} had a full meltdown in the cereal aisle that the whole store will remember.", e:{happiness:-4}},
+      {t:"{name} had a full meltdown in the cereal aisle that the whole store will remember.", e:{happiness:-4}, minEraIndex:1},
       {t:"{name} figured out how to open the cabinet everyone swore was toddler-proof.", e:{happiness:5}},
       {t:"{name} refused to nap on principle and regretted it deeply by dinnertime.", e:{happiness:-3}},
       {t:"{name} shared a toy without being asked, shocking every adult in the room.", e:{happiness:4}},
     ],
     kid:[
-      {t:"{name} made a new friend over a shared hatred of the cafeteria mystery meat.", e:{happiness:8}, special:'make_friend'},
+      {t:"{name} made a new friend over a shared hatred of the cafeteria mystery meat.", e:{happiness:8}, special:'make_friend', minEraIndex:2},
+      {t:"{name} made a new friend after trading lunch pails at recess.", e:{happiness:8}, special:'make_friend', minEraIndex:0, maxEraIndex:1},
       {t:"An older kid gave {name} a hard time at recess, and {name} is still thinking of the comeback they should've said.", e:{happiness:-7, looks:-1}},
       {t:"{name} won the spelling bee on a word even the judge could barely pronounce.", e:{smarts:6, happiness:4}},
       {t:"{name} fell out of a tree attempting a stunt that seemed like a great idea five seconds earlier.", e:{health:-10, happiness:-3}},
@@ -875,8 +1181,8 @@ function worldEventPool(eraId, bracket){
       {t:"The universe chose picture day, of all days, to give {name} the breakout of the century.", e:{looks:-4, happiness:-3}},
       {t:"{name} shot up several inches seemingly overnight and can no longer find pants that fit.", e:{health:3, looks:2}},
       {t:"{name} was voted class clown, an honor their parents insist is 'not a real award.'", e:{happiness:6}},
-      {t:"{name} failed a driving test so badly the instructor asked to walk home.", e:{happiness:-4}},
-      {t:"{name} tapped the car ahead at a stoplight — cosmetic damage, expensive lesson.", e:{money:-20, happiness:-3}},
+      {t:"{name} failed a driving test so badly the instructor asked to walk home.", e:{happiness:-4}, minEraIndex:2},
+      {t:"{name} tapped the car ahead at a stoplight — cosmetic damage, expensive lesson.", e:{money:-20, happiness:-3}, minEraIndex:2},
       {t:"{name}'s friend group imploded over something nobody can even remember the cause of anymore.", e:{happiness:-6}},
       {t:"{name} got a part in the school play and completely blanked on opening night.", e:{happiness:-4, looks:1}},
       {t:"{name} pulled an all-nighter for a test and somehow, miraculously, it worked.", e:{smarts:6, happiness:-2}},
@@ -885,8 +1191,8 @@ function worldEventPool(eraId, bracket){
       {t:"A total stranger gave {name} a compliment that somehow carried them through the entire week.", e:{happiness:5, looks:1}},
       {t:"{name} caught a cold that lingered just long enough to become genuinely annoying.", e:{health:-8}},
       {t:"{name} ran into an old friend completely out of the blue, and it was like no time had passed.", e:{happiness:7}},
-      {t:"{name} came back to a parking ticket that felt personal.", e:{money:-25, happiness:-2}},
-      {t:"The car picked the worst possible week to start making an ominous noise.", e:{money:-60, happiness:-3}},
+      {t:"{name} came back to a parking ticket that felt personal.", e:{money:-25, happiness:-2}, minEraIndex:2},
+      {t:"The car picked the worst possible week to start making an ominous noise.", e:{money:-60, happiness:-3}, minEraIndex:1},
       {t:"{name} got singled out at work for genuinely good reasons, for once.", e:{happiness:6}},
       {t:"A stretch of terrible sleep finally caught up with {name}.", e:{health:-5, happiness:-3}},
       {t:"{name} found forgotten cash in an old coat pocket, which absolutely counts as free money.", e:{money:15, happiness:2}},
@@ -898,24 +1204,38 @@ function worldEventPool(eraId, bracket){
       {t:"{name}'s knees filed a formal complaint this year.", e:{health:-9}},
       {t:"An unannounced visit from family made {name}'s whole month.", e:{happiness:9}},
       {t:"A routine checkup gave everyone a scare before turning out completely fine.", e:{health:-5, happiness:-3}},
-      {t:"{name} finally beat their own record at the crossword, and will be mentioning it for weeks.", e:{happiness:5, smarts:2}},
+      {t:"{name} finally beat their own record at the crossword, and will be mentioning it for weeks.", e:{happiness:5, smarts:2}, minEraIndex:1},
+      {t:"{name} whittled a walking stick good enough that half the porch wants one now.", e:{happiness:5, smarts:1}, minEraIndex:0, maxEraIndex:0},
       {t:"{name} won the neighborhood's unofficial pie contest and will absolutely not let anyone forget it.", e:{happiness:7}},
       {t:"{name} found a stack of old savings bonds tucked in a drawer, forgotten for decades.", e:{money:40, happiness:4}},
       {t:"An old friend from way back called completely out of the blue, and they talked for hours.", e:{happiness:8}},
-      {t:"{name}'s hearing aid picked the single worst possible moment to start whistling.", e:{happiness:-3}},
+      {t:"{name}'s hearing aid picked the single worst possible moment to start whistling.", e:{happiness:-3}, minEraIndex:2},
+      {t:"{name}'s eyesight isn't what it used to be, and a new pair of spectacles took some getting used to.", e:{happiness:-2}, minEraIndex:0, maxEraIndex:1},
       {t:"{name} took a bad fall on the porch steps, nothing broken but it shook everyone up.", e:{health:-8, happiness:-3}},
     ],
   };
   const flavor = {
-    wildwest:{ adult:[
-      {t:"{name} panned for gold for weeks and came away with mostly gravel.", e:{money:-15, happiness:-3}},
-      {t:"{name} made it through a brutal frontier winter by sheer stubbornness.", e:{health:-10, happiness:-4}},
-      {t:"{name} helped drive cattle all the way to the railhead and got paid well for the trouble.", e:{money:35, health:-5}},
-    ]},
-    twenties:{ adult:[
-      {t:"{name} put money in the market on a tip from a guy at the speakeasy — and it actually paid off.", e:{money:60, happiness:5}},
-      {t:"{name} lost a painful chunk of savings on a bet that seemed like a sure thing.", e:{money:-40, happiness:-6}},
-    ]},
+    wildwest:{
+      toddler:[
+        {t:"{name} had a full meltdown right in the middle of the general store that the whole town will remember.", e:{happiness:-4}},
+      ],
+      teen:[
+        {t:"{name} got bucked clean off a green-broke horse in front of half the town.", e:{happiness:-4, health:-4}},
+        {t:"{name} won a footrace at the town social and swaggered about it for a week.", e:{happiness:5, looks:1}},
+      ],
+      adult:[
+        {t:"{name} panned for gold for weeks and came away with mostly gravel.", e:{money:-15, happiness:-3}},
+        {t:"{name} made it through a brutal frontier winter by sheer stubbornness.", e:{health:-10, happiness:-4}},
+        {t:"{name} helped drive cattle all the way to the railhead and got paid well for the trouble.", e:{money:35, health:-5}},
+      ],
+    },
+    twenties:{
+      adult:[
+        {t:"{name} put money in the market on a tip from a guy at the speakeasy — and it actually paid off.", e:{money:60, happiness:5}},
+        {t:"{name} lost a painful chunk of savings on a bet that seemed like a sure thing.", e:{money:-40, happiness:-6}},
+        {t:"{name}'s motorcar wouldn't turn over all week and the mechanic charged for the trouble.", e:{money:-25, happiness:-3}},
+      ],
+    },
     postwar:{ adult:[
       {t:"{name} put a down payment on a brand-new house out in the suburbs.", e:{money:-120, happiness:10}},
       {t:"{name} brought home the family's first television and the whole street came over to see it.", e:{happiness:6, money:-20}},
@@ -933,7 +1253,9 @@ function worldEventPool(eraId, bracket){
   const out = {infant:[...generic.infant], toddler:[...generic.toddler], kid:[...generic.kid], teen:[...generic.teen], adult:[...generic.adult], senior:[...generic.senior]};
   const f = flavor[eraId] || {};
   Object.keys(f).forEach(k=>{ out[k] = out[k].concat(f[k]); });
-  return out[bracket] || [];
+  return (out[bracket] || []).filter(ev =>
+    (ev.minEraIndex == null || eraIndex >= ev.minEraIndex) &&
+    (ev.maxEraIndex == null || eraIndex <= ev.maxEraIndex));
 }
 
 // Rare, high-impact "legendary" events — memorable enough to talk about and to
@@ -984,7 +1306,7 @@ const STORY_CHANCE = 0.06;
 const STORY_BRACKETS = ['kid','teen','adult','senior'];
 const MINI_STORIES = [
   {
-    id:'stranger_help', brackets:['teen','adult','senior'],
+    id:'stranger_help', brackets:['teen','adult','senior'], minEraIndex:1,
     prompt:"A stranger stops {name} and asks for help — their car's broken down and they're clearly in a hurry.",
     choices:[
       { label:'Help them out', effect:{happiness:[4,7]}, cls:'good', result:"{name} helped out, and the stranger was genuinely grateful — a nice little moment." },
@@ -1074,6 +1396,12 @@ const MINI_STORIES = [
 // one story beat that couldn't happen anywhere else.
 const ERA_MINI_STORIES = {
   wildwest: [
+    { id:'stranded_traveler', brackets:['teen','adult','senior'],
+      prompt:"A traveler stops {name} on the road — their wagon's thrown a wheel and they're clearly in a hurry to reach town before dark.",
+      choices:[
+        { label:'Help them out', effect:{happiness:[4,7]}, cls:'good', result:"{name} helped out, and the traveler was genuinely grateful — a nice little moment." },
+        { label:'Wish them luck and move on', effect:{happiness:[-1,1]}, cls:'', result:"{name} decided not to get involved and kept riding." },
+      ] },
     { id:'range_feud', brackets:['adult','senior'],
       prompt:"Two ranching families in town are feuding hard over water rights, and both sides are quietly asking {name} to pick one.",
       choices:[
@@ -1145,8 +1473,10 @@ const ERA_MINI_STORIES = {
   ],
 };
 function storiesFor(bracket, eraId){
-  const generic = MINI_STORIES.filter(s => !s.brackets || s.brackets.includes(bracket));
-  const eraSpecific = (ERA_MINI_STORIES[eraId] || []).filter(s => !s.brackets || s.brackets.includes(bracket));
+  const eraIndex = ERAS.findIndex(e=>e.id===eraId);
+  const inEra = s => (!s.brackets || s.brackets.includes(bracket)) && (s.minEraIndex == null || eraIndex >= s.minEraIndex);
+  const generic = MINI_STORIES.filter(inEra);
+  const eraSpecific = (ERA_MINI_STORIES[eraId] || []).filter(inEra);
   return generic.concat(eraSpecific);
 }
 function openStoryModal(c, story, onDone){
@@ -1337,7 +1667,7 @@ const ACHIEVEMENTS = [
   { id:'prodigy', label:'Prodigy', desc:'Reach the Prodigy academic tier.', scope:'life', check:c => (c.skills && c.skills.academic || 0) >= 20 },
   { id:'elite_athlete', label:'Elite Athlete', desc:'Reach Elite in sports.', scope:'life', check:c => (c.skills && c.skills.sports || 0) >= 20 },
   { id:'master_artist', label:'Master Artist', desc:'Reach Master Artist in arts/music.', scope:'life', check:c => (c.skills && c.skills.arts || 0) >= 20 },
-  { id:'well_rounded', label:'Well-Rounded', desc:'Reach 80+ in every stat at once.', scope:'life', check:c => ['health','happiness','smarts','looks','imagination'].every(k => (c.stats[k]||0) >= 80) },
+  { id:'well_rounded', label:'Well-Rounded', desc:'Reach 80+ in every stat at once.', scope:'life', check:c => ['health','happiness','smarts','looks','imagination','strength','agility'].every(k => (c.stats[k]||0) >= 80) },
   { id:'nest_egg', label:'Nest Egg', desc:'Build savings of $10,000 or more.', scope:'life', check:c => (c.savings||0) >= 10000 },
   { id:'fully_connected', label:'Fully Connected', desc:'Have a pet, a best friend, and a partner all at once.', scope:'life', check:c => ['pet','bestfriend','partner'].every(role => c.relationships.some(r => r.active && r.role === role)) },
   { id:'retired_in_style', label:'Retired in Style', desc:'Reach retirement age with $5,000 or more.', scope:'life', check:c => c.age >= 65 && ((c.money||0) + (c.savings||0)) >= 5000 },
@@ -1607,7 +1937,7 @@ function openAchievements(){
 /* ---------- character creation ---------- */
 function newCharacter(eraIndex, name, inherited){
   const era = ERAS[eraIndex];
-  const base = { health: randInt(55,85), happiness: randInt(50,80), smarts: randInt(35,70), looks: randInt(35,70), imagination: randInt(25,55) };
+  const base = { health: randInt(55,85), happiness: randInt(50,80), smarts: randInt(35,70), looks: randInt(35,70), imagination: randInt(25,55), strength: randInt(35,70), agility: randInt(35,70) };
   if(inherited && inherited.bonusStat) base[inherited.bonusStat] = clamp(base[inherited.bonusStat] + 15);
   if(inherited && inherited.minusStat) base[inherited.minusStat] = clamp(base[inherited.minusStat] - 15);
   const startMoney = inherited && inherited.money != null ? inherited.money : randInt(...era.moneyRange);
@@ -1621,6 +1951,7 @@ function newCharacter(eraIndex, name, inherited){
     skills:{ sports:0, martialArts:0, academic:0, arts:0 },
     sportsStage:null, sportsStageReps:0, sportsProTierIdx:0,
     creditScore:null, loans:[],
+    degrees:[], enrolled:null, degreeCooldowns:{},
   };
   fam.rels.forEach(r=>addRelationship(c, r.role, r.name, r.species?{species:r.species}:null));
   return c;
@@ -1629,7 +1960,7 @@ function newCharacter(eraIndex, name, inherited){
 /* ---------- effect application ---------- */
 function applyEffectSpec(c, spec, rel){
   const deltas = {};
-  ['health','happiness','smarts','looks','imagination','money'].forEach(k=>{
+  ['health','happiness','smarts','looks','imagination','strength','agility','money'].forEach(k=>{
     if(spec[k] !== undefined) deltas[k] = rollRange(spec[k]);
   });
   if(spec.health) c.stats.health = clamp(c.stats.health + deltas.health);
@@ -1637,6 +1968,8 @@ function applyEffectSpec(c, spec, rel){
   if(spec.smarts) c.stats.smarts = clamp(c.stats.smarts + deltas.smarts);
   if(spec.looks) c.stats.looks = clamp(c.stats.looks + deltas.looks);
   if(spec.imagination) c.stats.imagination = clamp((c.stats.imagination||0) + deltas.imagination);
+  if(spec.strength) c.stats.strength = clamp((c.stats.strength||0) + deltas.strength);
+  if(spec.agility) c.stats.agility = clamp((c.stats.agility||0) + deltas.agility);
   if(spec.money) c.money = Math.max(0, Math.round(c.money + deltas.money));
   if(rel && spec.closeness !== undefined){
     rel.closeness = clamp(rel.closeness + rollRange(spec.closeness));
@@ -1655,6 +1988,20 @@ function eventClassFromDeltas(d){
   if(total > 1) return 'good';
   if(total < -1) return 'bad';
   return '';
+}
+
+/* ---------- physical stat decay ----------
+   Strength and Agility decline naturally with age, same idea as Health's
+   existing post-60 drift above — this is deliberately the ONLY mechanism
+   that phases a character out of a physically demanding job (no hardcoded
+   age cutoff on top of it). Starts softly at 50, steeper past 65, so a
+   character who keeps training can hold onto a physical job longer than
+   one who doesn't. */
+function applyPhysicalDecay(c){
+  if(c.age < 50) return;
+  const rate = c.age >= 65 ? [2,5] : [1,3];
+  c.stats.strength = clamp((c.stats.strength||0) - randInt(...rate));
+  c.stats.agility = clamp((c.stats.agility||0) - randInt(...rate));
 }
 
 /* ---------- economy: savings interest + investing ---------- */
@@ -1794,15 +2141,35 @@ function handleSpecial(c, special, action){
     addRelationship(c, 'partner', name);
     logEvent(c, `${firstName(c.name)} started seeing ${firstName(name)}.`, 'good');
   } else if(special === 'teen_job' && !c.job){
-    const title = pick(TEEN_JOB_TITLES[era.id]);
-    c.job = title; c.salary = randInt(8,25);
+    const job = bestQualifyingTeenJob(c, era.id);
+    c.job = job.title; c.salary = randInt(8,25);
     addRelationship(c, 'boss', pick(BOSS_NAMES));
-    logEvent(c, `${firstName(c.name)} got a part-time job as a ${title}.`, 'good');
+    logEvent(c, `${firstName(c.name)} got a part-time job as a ${job.title}.`, 'good');
   } else if(special === 'second_job' && c.job && !c.secondJob){
-    const title = pick(JOB_TITLES[era.id]);
+    const title = anyJobTitle(era.id);
     c.secondJob = title;
     c.secondSalary = Math.round(randInt(...era.moneyRange) * 0.35 + 10);
     logEvent(c, `${firstName(c.name)} took on a second job as a ${title}, on top of everything else.`, '');
+  } else if(special === 'enroll_degree'){
+    const options = (DEGREE_TYPES[era.id]||[]).filter(d => c.age >= d.minAge && !hasDegree(c,d.id) && !degreeOnCooldown(c,d.id) && !c.enrolled);
+    if(!options.length){
+      logEvent(c, `${firstName(c.name)} looked into training options but nothing new was available right now.`, '');
+    } else {
+      const listText = options.map((d,i)=>`${i+1}. ${d.label} — ${d.years} yr, $${d.cost}`).join('\n');
+      const input = prompt(`Choose training to pursue (type the number):\n${listText}`, '1');
+      const idx = parseInt(input, 10) - 1;
+      const choice = options[idx];
+      if(!choice){
+        logEvent(c, `${firstName(c.name)} thought about pursuing training but didn't commit to anything.`, '');
+      } else if(c.money < choice.cost){
+        logEvent(c, `${firstName(c.name)} wanted to enroll in ${choice.label.toLowerCase()} but couldn't afford the $${choice.cost} cost.`, '');
+      } else {
+        c.money -= choice.cost;
+        c.enrolled = { id: choice.id, yearsLeft: choice.years, yearsTotal: choice.years };
+        c.job = null; c.secondJob = null; c.secondSalary = 0; // full-time training, same as the sports-college branch
+        logEvent(c, `${firstName(c.name)} enrolled in ${choice.label.toLowerCase()} — ${choice.years} years of hard work ahead.`, 'good');
+      }
+    }
   } else if(special === 'quit_second_job' && c.secondJob){
     logEvent(c, `${firstName(c.name)} quit the second job as a ${c.secondJob} — one less thing to juggle.`, '');
     c.secondJob = null; c.secondSalary = 0;
@@ -1860,6 +2227,14 @@ function handleSpecial(c, special, action){
 }
 
 /* ---------- building the action menu ---------- */
+// Some actions read/say something different depending on era (e.g. no
+// belt-ranked "martial arts" or "varsity" sports in the Wild West) without
+// needing a whole separate action entry — this merges in the era-specific
+// label/texts when present, otherwise returns the action def unchanged.
+function eraVariant(def, eraId){
+  const o = def.eraOverrides && def.eraOverrides[eraId];
+  return o ? Object.assign({}, def, o) : def;
+}
 function buildActionMenu(c){
   const bracket = ageBracket(c.age);
   const era = ERAS[c.eraIndex];
@@ -1882,6 +2257,7 @@ function buildActionMenu(c){
     if(def.special === 'teen_job' && c.job) return;
     if(def.special === 'second_job' && (!c.job || c.secondJob)) return;
     if(def.special === 'quit_second_job' && !c.secondJob) return;
+    if(def.special === 'enroll_degree' && (c.enrolled || !degreeOptionsAvailable(c, era.id))) return;
     if(def.requiresSportsStage && c.sportsStage !== def.requiresSportsStage) return;
     if(def.minAge && c.age < def.minAge) return;
     // minSmarts/minImagination: content that only opens up once a character
@@ -1889,7 +2265,8 @@ function buildActionMenu(c){
     // instead of just being numbers that go up in isolation.
     if(def.minSmarts && (c.stats.smarts||0) < def.minSmarts) return;
     if(def.minImagination && (c.stats.imagination||0) < def.minImagination) return;
-    actions.push({ def, rel:null, key: def.id, label: fill(def.label, c, null), category: def.category, cost: def.cost||0 });
+    const vdef = eraVariant(def, era.id);
+    actions.push({ def: vdef, rel:null, key: def.id, label: fill(vdef.label, c, null), category: vdef.category, cost: vdef.cost||0 });
   });
 
   const eraDefs = (ERA_BRACKET_ACTIONS[era.id]||{})[bracket] || [];
@@ -1992,10 +2369,12 @@ function applyMilestones(c){
     advanceSportsStage(c);
     if(c.sportsStage === 'college'){
       logEvent(c, `${firstName(c.name)} became an adult and headed off to compete in college athletics.`, '', true);
+    } else if(c.enrolled){
+      logEvent(c, `${firstName(c.name)} became an adult, already deep into their training — the job hunt can wait.`, '', true);
     } else {
-      const { title, highSmarts } = assignStandardJob(c);
-      const msg = highSmarts
-        ? `${firstName(c.name)}'s smarts opened doors — they became an adult and landed a competitive job as a ${title}.`
+      const { title, tier } = assignStandardJob(c);
+      const msg = tier === 'desirable'
+        ? `${firstName(c.name)}'s hard work opened doors — they became an adult and landed a competitive job as a ${title}.`
         : `${firstName(c.name)} became an adult and took a job as a ${title}.`;
       logEvent(c, msg, '', true);
     }
@@ -2072,6 +2451,8 @@ function completeYear(c){
     secondJobPenalty(c);
   }
   if(c.age > 60) c.stats.health = clamp(c.stats.health - randInt(1,4));
+  applyPhysicalDecay(c);
+  processEnrollment(c);
   applyEconomyInterest(c);
   processLoans(c);
 
@@ -2422,7 +2803,7 @@ function buildTreeChain(){
   return chain;
 }
 
-const TRAIT_LABEL = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks'};
+const TRAIT_LABEL = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',strength:'Strength',agility:'Agility'};
 
 function treeNodeHtml(f){
   const eraId = f.eraId || eraIdFromName(f.era);
@@ -2608,6 +2989,45 @@ function statBar(label, key, value){
 
 const ROLE_LABEL = {mother:'Mother',father:'Father',sibling:'Sibling',pet:'Pet',bestfriend:'Best Friend',friend:'Friend',partner:'Partner',teacher:'Teacher',boss:'Boss',coworker:'Coworker'};
 
+const JOB_TIER_LABEL = { fallback:'Fallback', standard:'Standard', desirable:'Desirable' };
+// The career board — every job in the character's era, locked or not, with
+// its requirements spelled out. This is the "locked jobs are visible, not
+// hidden" decision: a goal-post to build toward instead of a surprise
+// unlock. Shown on the Finances tab.
+function careerBoardHtml(c){
+  const era = ERAS[c.eraIndex];
+  const pool = JOBS[era.id];
+  if(!pool) return '';
+  const isTeen = c.age < 18;
+  const tiers = isTeen ? [['teen', pool.teen||[]]] : [['desirable',pool.desirable||[]],['standard',pool.standard||[]],['fallback',pool.fallback||[]]];
+  const rows = tiers.map(([tierKey, jobs])=>{
+    const jobRows = jobs.map(j=>{
+      const qualifies = meetsPrereq(c, j.prereq);
+      const isCurrent = c.job === j.title;
+      const icon = isCurrent ? '💼' : (qualifies ? '✅' : '🔒');
+      const cls = isCurrent ? 'job-row current' : (qualifies ? 'job-row' : 'job-row locked');
+      return `<div class="${cls}"><span>${icon} ${escapeHtml(j.title)}</span><span class="job-req">${escapeHtml(prereqText(j.prereq))}</span></div>`;
+    }).join('');
+    const tierLabel = isTeen ? 'Teen jobs' : JOB_TIER_LABEL[tierKey];
+    return `<div class="job-tier"><h5>${tierLabel}</h5>${jobRows}</div>`;
+  }).join('');
+
+  const degreeOpts = (DEGREE_TYPES[era.id]||[]);
+  const enrolledHtml = c.enrolled
+    ? (()=>{ const d = degreeById(c.enrolled.id); return `<div class="training-status">📚 Currently pursuing: <strong>${escapeHtml(d.label)}</strong> — ${c.enrolled.yearsLeft} year${c.enrolled.yearsLeft===1?'':'s'} left</div>`; })()
+    : '';
+  const degreeRows = degreeOpts.map(d=>{
+    const have = hasDegree(c, d.id);
+    const cooldown = degreeOnCooldown(c, d.id);
+    const status = have ? '✅ Completed' : (cooldown ? `⏳ Available again at age ${c.degreeCooldowns[d.id]}` : `$${d.cost}, ${d.years} yr`);
+    return `<div class="job-row"><span>${escapeHtml(d.label)}</span><span class="job-req">${status}</span></div>`;
+  }).join('');
+
+  return `<div class="career-section"><h4>Career Board — ${era.name}</h4>${enrolledHtml}${rows}
+    <div class="job-tier"><h5>Training &amp; Degrees</h5>${degreeRows}</div>
+  </div>`;
+}
+
 // Tabs split what used to be one long scroll into focused views. The vitals
 // (avatar/stats/money/skills) stay always-visible on the left since you want
 // those no matter what you're browsing; only the deeper per-domain content
@@ -2658,7 +3078,7 @@ function renderGame(){
   const tabPanelHtml = {
     life: '',
     relationships: `<div class="rel-section">${relHtml || '<div style="font-size:0.8rem;color:var(--text-dim);">No relationships yet.</div>'}</div>`,
-    finances: `<div class="owned-section"><h4>Owned</h4><div class="owned-list">${ownedHtml}</div></div>${creditHtml}`,
+    finances: `<div class="owned-section"><h4>Owned</h4><div class="owned-list">${ownedHtml}</div></div>${creditHtml}${careerBoardHtml(c)}`,
     family: `<div class="legacy-box"><h4>Family Legacy — Gen ${state.generation}</h4>
       ${ state.familyLog.length === 0 ? '<div>No ancestors yet — you\'re the first.</div>'
          : state.familyLog.map(f=>`<div>Gen ${f.gen}: <strong>${f.name}</strong> (${f.era}) — lived to ${f.age}, left $${((f.money||0)+(f.savings||0)-(f.debt||0)).toLocaleString()}</div>`).join('') }
@@ -2693,6 +3113,8 @@ function renderGame(){
         ${statBar('Smarts','smarts',c.stats.smarts)}
         ${statBar('Looks','looks',c.stats.looks)}
         ${statBar('Imagination','imagination',c.stats.imagination||0)}
+        ${statBar('Strength','strength',c.stats.strength||0)}
+        ${statBar('Agility','agility',c.stats.agility||0)}
         <div class="money-line"><span>Cash</span><span class="amt">$${c.money.toLocaleString()}</span></div>
         ${c.savings ? `<div class="money-line"><span>Savings</span><span class="amt">$${c.savings.toLocaleString()}</span></div>` : ''}
         ${c.job ? `<div class="job-line">Earning ~$${c.salary.toLocaleString()}/yr as a ${c.job}${c.jobTenure ? ` (${c.jobTenure} yr${c.jobTenure===1?'':'s'})` : ''}</div>` : ''}
@@ -2798,14 +3220,14 @@ function renderDeath(c){
   const totalEstate = (c.money||0) + (c.savings||0) - outstandingDebt(c);
   const inheritance = Math.round(totalEstate * 0.4);
   const bonusStat = topStat(c);
-  const STAT_LABEL_MAP = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',imagination:'Imagination'};
+  const STAT_LABEL_MAP = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',imagination:'Imagination',strength:'Strength',agility:'Agility'};
   const statLabel = STAT_LABEL_MAP[bonusStat];
   const shareText = generateShareText(c);
   const activeChallengeObj = state.activeChallenge ? CHALLENGES.find(ch=>ch.id===state.activeChallenge) : null;
 
   // Two candidate children to choose from at the handoff — real branching, so
   // two people playing "the same" bloodline can end up with different stories.
-  const STAT_KEYS = ['health','happiness','smarts','looks','imagination'];
+  const STAT_KEYS = ['health','happiness','smarts','looks','imagination','strength','agility'];
   function pickDifferentStat(exclude){ let s; let guard=0; do{ s = pick(STAT_KEYS); guard++; } while(s===exclude && guard<10); return s; }
   const childSurname = c.surname || c.name.split(' ').slice(-1)[0];
   const child1Name = firstNameForEra(nextEra.id);
