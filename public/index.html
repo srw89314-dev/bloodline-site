@@ -301,8 +301,12 @@ const PET_SPECIES = {
   wildwest:['dog','barn cat','horse'], twenties:['dog','cat'], postwar:['dog','cat','goldfish'],
   modern:['dog','cat','hamster'], future:['dog','cat','companion-bot'],
 };
-const TEACHER_NAMES = ['Mr. Aldridge','Mrs. Petrova','Ms. Kwan','Mr. Osei','Mrs. Lindqvist','Mr. Alvarez'];
-const BOSS_NAMES = ['Ms. Renner','Mr. Douglas','Mrs. Ibarra','Mr. Choi','Ms. Fontaine'];
+// "Ms." didn't come into general use as an honorific until the 1970s
+// (popularized by Ms. magazine, 1971) — using "Mrs."/"Mr." keeps these
+// names period-neutral across all 5 eras instead of reading wrong in the
+// 4 that predate it.
+const TEACHER_NAMES = ['Mr. Aldridge','Mrs. Petrova','Mrs. Kwan','Mr. Osei','Mrs. Lindqvist','Mr. Alvarez'];
+const BOSS_NAMES = ['Mrs. Renner','Mr. Douglas','Mrs. Ibarra','Mr. Choi','Mrs. Fontaine'];
 
 /* ---------- education & training: apprenticeships / degrees ----------
    Wild West and Twenties use era-appropriate "training" (apprenticeships/
@@ -1169,16 +1173,19 @@ function worldEventPool(eraId, bracket){
       {t:"{name} won the spelling bee on a word even the judge could barely pronounce.", e:{smarts:6, happiness:4}},
       {t:"{name} fell out of a tree attempting a stunt that seemed like a great idea five seconds earlier.", e:{health:-10, happiness:-3}},
       {t:"The flu went around school and {name} did not escape it.", e:{health:-8}},
-      {t:"{name} got picked first for kickball for the first time in recorded history.", e:{happiness:6}},
+      {t:"{name} got picked first for kickball for the first time in recorded history.", e:{happiness:6}, minEraIndex:1},
+      {t:"{name} got picked first for a game of tag for the first time in recorded history.", e:{happiness:6}, minEraIndex:0, maxEraIndex:0},
       {t:"{name} lost a tooth mid-sentence during a class presentation.", e:{happiness:-2}},
       {t:"{name} turned in a project so good the teacher read it out loud to the whole class.", e:{smarts:5, happiness:4}},
       {t:"{name} got sent to the principal's office for something that, in hindsight, was pretty funny.", e:{happiness:-3, smarts:1}},
-      {t:"{name} won the class geography bee by knowing one obscure capital city.", e:{smarts:5, happiness:3}},
+      {t:"{name} won the class geography bee by knowing one obscure capital city.", e:{smarts:5, happiness:3}, minEraIndex:2},
+      {t:"{name} won the class recitation contest, word-perfect from memory.", e:{smarts:5, happiness:3}, minEraIndex:0, maxEraIndex:1},
     ],
     teen:[
       {t:"{name} got their heart broken for the first time, and it felt exactly as dramatic as every song promised.", e:{happiness:-10}},
       {t:"{name} aced an exam they were absolutely certain they'd bombed.", e:{smarts:7, happiness:5}},
-      {t:"The universe chose picture day, of all days, to give {name} the breakout of the century.", e:{looks:-4, happiness:-3}},
+      {t:"The universe chose picture day, of all days, to give {name} the breakout of the century.", e:{looks:-4, happiness:-3}, minEraIndex:2},
+      {t:"{name} got caught in a sudden downpour on the way to school and showed up looking like a drowned cat.", e:{looks:-4, happiness:-3}, minEraIndex:0, maxEraIndex:1},
       {t:"{name} shot up several inches seemingly overnight and can no longer find pants that fit.", e:{health:3, looks:2}},
       {t:"{name} was voted class clown, an honor their parents insist is 'not a real award.'", e:{happiness:6}},
       {t:"{name} failed a driving test so badly the instructor asked to walk home.", e:{happiness:-4}, minEraIndex:2},
@@ -2052,11 +2059,25 @@ const COLLEGE_SPORTS_TIERS = ['Varsity','All-Conference','All-American'];
 const PRO_SPORTS_TIERS = ['Rookie','Starter','All-Star','MVP','Hall of Fame'];
 const SPORTS_LADDER_PER_TIER = 4; // reps needed to advance one tier within a stage
 const PRO_SPORTS_SALARY_MULT = [1.5, 2.5, 4, 7, 12]; // x era's average salary, per pro tier
-function sportsLadderTiers(stage){
+// "JV/Varsity," "MVP," and organized college athletics are all early-1900s+
+// American terms (formal high-school/college sports culture, the MVP award).
+// Twenties-onward eras already had this vocabulary; the Wild West did not,
+// so it gets its own period-honest label set for the same tier indices —
+// the mechanics (thresholds, pay multipliers) are identical either way.
+const SPORTS_TIER_LABELS_ERA = {
+  wildwest: {
+    school: ['Town Team','Town Standout','Town Champion'],
+    college: ['Regional Circuit','Noted Competitor','Frontier Champion'],
+    pro: ['Newcomer','Regular','Local Favorite','Champion','Legend of the Circuit'],
+  },
+};
+function sportsLadderTiers(stage, eraId){
+  const override = SPORTS_TIER_LABELS_ERA[eraId] && SPORTS_TIER_LABELS_ERA[eraId][stage];
+  if(override) return override;
   return stage === 'school' ? SCHOOL_SPORTS_TIERS : stage === 'college' ? COLLEGE_SPORTS_TIERS : stage === 'pro' ? PRO_SPORTS_TIERS : null;
 }
-function sportsLadderTier(stage, reps){
-  const tiers = sportsLadderTiers(stage);
+function sportsLadderTier(stage, reps, eraId){
+  const tiers = sportsLadderTiers(stage, eraId);
   if(!tiers) return null;
   const idx = Math.min(tiers.length - 1, Math.floor((reps||0) / SPORTS_LADDER_PER_TIER));
   return { label: tiers[idx], idx };
@@ -2064,33 +2085,35 @@ function sportsLadderTier(stage, reps){
 function eraAvgMoney(era){ return (era.moneyRange[0]+era.moneyRange[1])/2; }
 function checkProTierAdvance(c){
   const era = ERAS[c.eraIndex];
-  const tier = sportsLadderTier('pro', c.sportsStageReps);
+  const tier = sportsLadderTier('pro', c.sportsStageReps, era.id);
   if(!tier) return;
   const prevIdx = c.sportsProTierIdx||0;
   if(tier.idx > prevIdx){
     c.sportsProTierIdx = tier.idx;
     c.salary = Math.round(eraAvgMoney(era) * PRO_SPORTS_SALARY_MULT[tier.idx]);
-    c.job = `${PRO_SPORTS_TIERS[tier.idx]} Pro Athlete`;
+    c.job = `${tier.label} Athlete`;
     c.jobTenure = 0;
-    logEvent(c, `${firstName(c.name)} was promoted to ${PRO_SPORTS_TIERS[tier.idx]} — the paycheck to match.`, 'good', true);
+    logEvent(c, `${firstName(c.name)} was promoted to ${tier.label} — the paycheck to match.`, 'good', true);
   }
 }
 // Called at the age-18 and age-22 checkpoints (see applyMilestones) to
 // decide whether the ladder continues into the next stage or ends here.
 function advanceSportsStage(c){
+  const eraId = ERAS[c.eraIndex].id;
   if(c.sportsStage === 'school'){
-    const tier = sportsLadderTier('school', c.sportsStageReps);
+    const tier = sportsLadderTier('school', c.sportsStageReps, eraId);
     if(tier && tier.idx >= 1){ // reached at least Varsity
       c.sportsStage = 'college'; c.sportsStageReps = 0;
     } else {
       c.sportsStage = null;
     }
   } else if(c.sportsStage === 'college'){
-    const tier = sportsLadderTier('college', c.sportsStageReps);
+    const tier = sportsLadderTier('college', c.sportsStageReps, eraId);
     if(tier && tier.idx >= 2){ // reached All-American
       const era = ERAS[c.eraIndex];
+      const proTiers = sportsLadderTiers('pro', eraId);
       c.sportsStage = 'pro'; c.sportsStageReps = 0; c.sportsProTierIdx = 0;
-      c.job = `${PRO_SPORTS_TIERS[0]} Pro Athlete`;
+      c.job = `${proTiers[0]} Athlete`;
       c.salary = Math.round(eraAvgMoney(era) * PRO_SPORTS_SALARY_MULT[0]);
       c.jobTenure = 0;
       if(!relByRole(c,'boss')) addRelationship(c, 'boss', pick(BOSS_NAMES));
@@ -2113,16 +2136,28 @@ function recordSkillPractice(c, actionId){
     }
   }
 }
+// Belt-ranked martial arts is a 20th-century-onward American concept (see
+// the "boxing lessons" eraOverride on the martial_arts actions) — the skill
+// display needs the same period-honest swap, since it reads from raw
+// practice reps rather than the action label.
+const MARTIAL_ARTS_BELTS_ERA = {
+  wildwest: ['Green Hand','Scrapper','Brawler','Tough Customer','Local Toughest','Regional Contender','Circuit Fighter','Champion Boxer'],
+};
 function skillsHtml(c){
   if(!c.skills) return '';
+  const eraId = ERAS[c.eraIndex].id;
   const rows = [];
   if(c.skills.sports > 0) rows.push(`<div>Sports: <strong>${skillTier(SPORTS_TIERS, c.skills.sports, 4)}</strong></div>`);
   if(c.sportsStage){
-    const tier = sportsLadderTier(c.sportsStage, c.sportsStageReps);
+    const tier = sportsLadderTier(c.sportsStage, c.sportsStageReps, eraId);
     const stageLabel = c.sportsStage === 'school' ? 'School Athletics' : c.sportsStage === 'college' ? 'College Athletics' : 'Pro Athletics';
     if(tier) rows.push(`<div>${stageLabel}: <strong>${tier.label}</strong></div>`);
   }
-  if(c.skills.martialArts > 0) rows.push(`<div>Martial Arts: <strong>${skillTier(MARTIAL_ARTS_BELTS, c.skills.martialArts, 3)}</strong></div>`);
+  if(c.skills.martialArts > 0){
+    const belts = MARTIAL_ARTS_BELTS_ERA[eraId] || MARTIAL_ARTS_BELTS;
+    const label = eraId === 'wildwest' ? 'Boxing' : 'Martial Arts';
+    rows.push(`<div>${label}: <strong>${skillTier(belts, c.skills.martialArts, 3)}</strong></div>`);
+  }
   if(c.skills.academic > 0) rows.push(`<div>Academic Track: <strong>${skillTier(ACADEMIC_TIERS, c.skills.academic, 4)}</strong></div>`);
   if((c.skills.arts||0) > 0) rows.push(`<div>Arts: <strong>${skillTier(ARTS_TIERS, c.skills.arts, 4)}</strong></div>`);
   if(!rows.length) return '';
@@ -2368,7 +2403,10 @@ function applyMilestones(c){
     c.relationships.filter(r=>r.role==='teacher').forEach(r=>r.active=false);
     advanceSportsStage(c);
     if(c.sportsStage === 'college'){
-      logEvent(c, `${firstName(c.name)} became an adult and headed off to compete in college athletics.`, '', true);
+      const msg = era.id === 'wildwest'
+        ? `${firstName(c.name)} became an adult and set off to compete on the regional athletic circuit.`
+        : `${firstName(c.name)} became an adult and headed off to compete in college athletics.`;
+      logEvent(c, msg, '', true);
     } else if(c.enrolled){
       logEvent(c, `${firstName(c.name)} became an adult, already deep into their training — the job hunt can wait.`, '', true);
     } else {
@@ -2576,7 +2614,7 @@ function generateShareText(c){
   if(challenge){
     lines.push(`Think you can beat this start? Same challenge → ${challengeShareUrl(challenge.id)}`);
   } else {
-    lines.push('Play yours → https://bloodline-game.netlify.app');
+    lines.push('Play yours → https://playbloodline.netlify.app');
   }
   return lines.join('\n');
 }
@@ -2693,7 +2731,7 @@ function generateShareCanvas(c){
   ctx.fillText(`Generation ${c.generation} of the ${surname} bloodline`, canvas.width/2, canvas.height - 70);
   ctx.fillStyle = theme.b;
   ctx.font = '700 22px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('Play yours → bloodline-game.netlify.app', canvas.width/2, canvas.height - 34);
+  ctx.fillText('Play yours → playbloodline.netlify.app', canvas.width/2, canvas.height - 34);
 
   return canvas;
 }
@@ -2861,7 +2899,7 @@ let selectedEra = 0;
 let pendingChallenge = null; // set from a ?challenge=<id> link before the first renderSetup()
 
 /* ---------- challenge seeds: modal + start flow ---------- */
-function challengeShareUrl(id){ return `https://bloodline-game.netlify.app/?challenge=${encodeURIComponent(id)}`; }
+function challengeShareUrl(id){ return `https://playbloodline.netlify.app/?challenge=${encodeURIComponent(id)}`; }
 
 function openChallengeModal(){
   const overlay = document.getElementById('challenge-overlay');
