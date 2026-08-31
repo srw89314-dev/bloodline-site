@@ -2704,6 +2704,58 @@ function finishYear(c){
   renderGame();
 }
 
+/* ---------- starting-age picker: silent backstory simulation ----------
+   Plays out the years before a chosen starting age using the SAME action
+   and year-resolution functions as normal play — just with actions picked
+   for the character instead of by the player, and no rendering/saving per
+   year. This keeps a fast-forwarded character consistent with everything
+   else in the game (same job assignment, same milestones, same skill
+   tiers) instead of needing a second, hand-authored way to generate stats. */
+// enroll_degree/deposit_savings/withdraw_savings all use a blocking prompt()
+// for player input — must never be auto-picked during a silent fast-forward.
+const AUTOPILOT_EXCLUDE_SPECIALS = new Set(['marry','find_partner','enroll_degree','second_job','quit_second_job','deposit_savings','withdraw_savings']);
+function autopilotActionPool(c){
+  return buildActionMenu(c).filter(a => !a.shopItem && !a.financeItem &&
+    !(a.def && a.def.special && AUTOPILOT_EXCLUDE_SPECIALS.has(a.def.special)));
+}
+function sampleWithoutReplacement(arr, n){
+  const copy = arr.slice();
+  const out = [];
+  while(copy.length && out.length < n){ out.push(copy.splice(randInt(0, copy.length-1), 1)[0]); }
+  return out;
+}
+// Same per-year resolution as completeYear(), minus the two branches that
+// need a real player in front of the screen (mini-story / reaction modals)
+// and minus the death roll — a backstory year is guaranteed survivable, so
+// the player is always handed a living character to actually take over.
+function silentCompleteYear(c){
+  if(c.job && c.age >= 18){ applyJobRaise(c); c.money += c.salary; }
+  if(c.secondJob && c.age >= 18){ c.money += c.secondSalary; secondJobPenalty(c); }
+  if(c.age > 60) c.stats.health = clamp(c.stats.health - randInt(1,4));
+  applyPhysicalDecay(c);
+  processEnrollment(c);
+  applyEconomyInterest(c);
+  processLoans(c);
+  c.relationships.filter(r=>r.active).forEach(r=>{ r.closeness = clamp(r.closeness - randInt(1,3)); });
+  runWorldEventAndLegendary(c, ageBracket(c.age));
+  applyMilestones(c);
+  c.actionUsage = {};
+  c.categoryUsage = {};
+}
+function fastForwardCharacter(c, targetAge){
+  ffActive = true;
+  try {
+    while(c.age < targetAge){
+      const pool = autopilotActionPool(c);
+      sampleWithoutReplacement(pool, randInt(1, 3)).forEach(a => performAction(c, a));
+      c.age += 1;
+      silentCompleteYear(c);
+    }
+  } finally {
+    ffActive = false;
+  }
+}
+
 function killCharacter(c){
   c.alive = false;
   const causes = c.stats.health<=0 ? ['a long illness','failing health','a fading heart'] : ['old age','a sudden accident','an unexpected turn'];
@@ -3149,6 +3201,23 @@ let selectedEra = 0;
 const PACE_OPTIONS = [1,3,6,9,12];
 let selectedPace = 6;
 function paceLabel(months){ return months === 12 ? '1 Year' : (months === 1 ? '1 Month' : `${months} Months`); }
+
+// Starting-age picker: lets a player skip the low-agency infant/toddler
+// years and drop straight into a life already in progress. The skipped
+// years are actually simulated (see fastForwardCharacter below), not
+// hand-authored, so the character arrives with a real, earned-if-condensed
+// history rather than stats pulled from thin air.
+const START_AGE_OPTIONS = [
+  { age:0, label:'Newborn', sub:"Play the whole story from day one." },
+  { age:6, label:'Kid', sub:"Skip the baby years — starts right after school begins." },
+  { age:13, label:'Teen', sub:"Jump into the school, skills, and social years." },
+  { age:19, label:'Young Adult', sub:"Already out on their own — schooling and first job already sorted." },
+];
+let selectedStartAge = 0;
+// Set true while fastForwardCharacter is silently simulating backstory years,
+// so intermediate performAction()/renderGame() calls during that loop don't
+// paint the screen or thrash the DOM — only the final state renders.
+let ffActive = false;
 let pendingChallenge = null; // set from a ?challenge=<id> link before the first renderSetup()
 
 /* ---------- challenge seeds: modal + start flow ---------- */
@@ -3249,6 +3318,11 @@ function renderSetup(){
       ${PACE_OPTIONS.map(m=>`<button type="button" class="btn-secondary pace-btn${m===selectedPace?' selected':''}" data-pace="${m}" style="${m===selectedPace?'border-color:var(--accent);font-weight:600;':''}">${paceLabel(m)}</button>`).join('')}
     </div>
     <p style="color:var(--text-dim);font-size:0.78rem;margin:-6px 0 12px;">Smaller = more check-ins with finer control. Larger = faster playthroughs. You can change this anytime once you're playing.</p>
+    <label>Starting age — begin from day one, or already partway into the story</label>
+    <div class="btn-row" id="start-age-grid" style="margin-bottom:10px;">
+      ${START_AGE_OPTIONS.map(o=>`<button type="button" class="btn-secondary start-age-btn${o.age===selectedStartAge?' selected':''}" data-age="${o.age}" style="${o.age===selectedStartAge?'border-color:var(--accent);font-weight:600;':''}">${o.label}</button>`).join('')}
+    </div>
+    <p style="color:var(--text-dim);font-size:0.78rem;margin:-6px 0 12px;">${START_AGE_OPTIONS.find(o=>o.age===selectedStartAge).sub}${selectedStartAge>0 ? " Those earlier years play out on their own — you'll see how it went in the event log once you're in." : ""}</p>
     <label for="name-input">Character name</label>
     <input type="text" id="name-input" placeholder="e.g. Wyatt Calloway" />
     <div class="btn-row">
@@ -3282,6 +3356,9 @@ function renderSetup(){
   document.querySelectorAll('.pace-btn').forEach(btn=>{
     btn.onclick = ()=>{ selectedPace = parseInt(btn.dataset.pace, 10); renderSetup(); };
   });
+  document.querySelectorAll('.start-age-btn').forEach(btn=>{
+    btn.onclick = ()=>{ selectedStartAge = parseInt(btn.dataset.age, 10); renderSetup(); };
+  });
   document.getElementById('random-name-btn').onclick = ()=>{
     document.getElementById('name-input').value = `${firstNameForEra(ERAS[selectedEra].id)} ${pick(LAST_NAMES)}`;
   };
@@ -3295,7 +3372,8 @@ function renderSetup(){
       state.generation = 1; state.familyLog = [];
       state.char = newCharacter(selectedEra, name, null);
       state.activeChallenge = null;
-      trackEvent('life_started', { era: ERAS[selectedEra].id });
+      if(selectedStartAge > 0) fastForwardCharacter(state.char, selectedStartAge);
+      trackEvent('life_started', { era: ERAS[selectedEra].id, startAge: selectedStartAge });
       recordBloodlineStart();
       renderGame();
       cloudAutosave();
@@ -3367,6 +3445,7 @@ const TABS = [
 let activeTab = 'life';
 
 function renderGame(){
+  if(ffActive) return; // suppress intermediate paints while fast-forwarding a chosen starting age
   setupEl.style.display='none'; deathEl.style.display='none'; gameEl.style.display='block';
   const c = state.char;
   const era = ERAS[c.eraIndex];
