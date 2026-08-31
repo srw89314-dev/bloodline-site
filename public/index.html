@@ -236,7 +236,7 @@
   <div id="reaction-overlay" class="story-overlay"></div>
   <div id="faq-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.7.2 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.8.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -996,7 +996,7 @@ const BRACKET_ACTIONS = {
      // Belt-ranked martial arts schools weren't a thing in the American West
      // yet — boxing/wrestling lessons are the period-honest equivalent.
      eraOverrides:{ wildwest:{ label:'Take boxing lessons', texts:["{name} is getting quick with their fists.","{name} learned to take a hit without flinching."] } }},
-    {id:'chores', label:'Do chores for allowance', category:'Money',
+    {id:'chores', label:'Do chores for allowance', category:'Money', cap:6,
      texts:["{name} did every chore on the list.","{name} negotiated a slightly better allowance."],
      effect:{money:[5,12], happiness:[-1,2]}},
     {id:'lemonade', label:'Run a lemonade stand', category:'Money', minAge:7,
@@ -2052,11 +2052,12 @@ function newCharacter(eraIndex, name, inherited){
     name, eraIndex, age:0, stats:base, money:Math.round(startMoney), savings:0,
     job:null, salary:0, jobTenure:0, secondJob:null, secondSalary:0,
     alive:true, events:[], generation: state.generation,
-    relationships:[], owned:[], actionUsage:{}, surname, _usedText:{},
+    relationships:[], owned:[], actionUsage:{}, categoryUsage:{}, surname, _usedText:{},
     skills:{ sports:0, martialArts:0, academic:0, arts:0 },
     sportsStage:null, sportsStageReps:0, sportsProTierIdx:0,
     creditScore:null, loans:[],
     degrees:[], enrolled:null, degreeCooldowns:{},
+    pace: (typeof selectedPace !== 'undefined' ? selectedPace : 6), monthsIntoYear:0,
   };
   fam.rels.forEach(r=>addRelationship(c, r.role, r.name, r.species?{species:r.species}:null));
   return c;
@@ -2463,19 +2464,33 @@ function buildActionMenu(c){
   return actions;
 }
 
-// Categories that represent skill-building / academic practice can be repeated
-// up to 5x per year; everything else can be chosen once per year (but every
-// available option can be chosen, not just a handful).
 const SKILL_CATEGORIES = ['School', 'Activities', 'Growth'];
-function actionCap(category){ return SKILL_CATEGORIES.includes(category) ? 5 : 1; }
+const SKILL_ACTION_CAP = 2;
+const SKILL_CATEGORY_CEILING = 5;
+function actionCap(category){ return SKILL_CATEGORIES.includes(category) ? SKILL_ACTION_CAP : 1; }
 function actionUsageCount(c, key){ return c.actionUsage[key] || 0; }
+function categoryUsageCount(c, category){ return (c.categoryUsage && c.categoryUsage[category]) || 0; }
+function categoryCeiling(category){ return SKILL_CATEGORIES.includes(category) ? SKILL_CATEGORY_CEILING : Infinity; }
 
 function performAction(c, action){
-  const cap = actionCap(action.category);
+  const def = action.def;
+  const cap = (def && def.cap) || actionCap(action.category);
   const used = actionUsageCount(c, action.key);
   if(used >= cap) return;
+  if(categoryUsageCount(c, action.category) >= categoryCeiling(action.category)) return;
   if(action.cost && c.money < action.cost) return;
-  const def = action.def;
+
+  if(def && def.id === 'chores' && c.job){
+    const fam = c.relationships.filter(r=>r.active && (r.role==='mother'||r.role==='father'));
+    fam.forEach(r=>{ r.closeness = clamp(r.closeness + randInt(3,6)); });
+    logEvent(c, `${firstName(c.name)} pitched in around the house — no allowance needed, just helping the family out.`, 'good');
+    recordSkillPractice(c, def.id);
+    c.actionUsage[action.key] = used + 1;
+    if(!c.categoryUsage) c.categoryUsage = {};
+    c.categoryUsage[action.category] = categoryUsageCount(c, action.category) + 1;
+    renderGame();
+    return;
+  }
 
   if(action.financeItem){
     const item = action.financeItem;
@@ -2510,6 +2525,10 @@ function performAction(c, action){
   }
   recordSkillPractice(c, def.id);
   c.actionUsage[action.key] = used + 1;
+  if(SKILL_CATEGORIES.includes(action.category)){
+    if(!c.categoryUsage) c.categoryUsage = {};
+    c.categoryUsage[action.category] = categoryUsageCount(c, action.category) + 1;
+  }
   renderGame();
 }
 
@@ -2590,20 +2609,22 @@ function advanceTurn(months){
     c.age += 1;
     completeYear(c);
   } else {
-    partialAdvance(c);
+    partialAdvance(c, months);
   }
 }
 
-function partialAdvance(c){
+const PARTIAL_EVENT_MONTHLY_P = 1 - Math.pow(0.75, 1/6);
+function partialEventChance(months){ return 1 - Math.pow(1 - PARTIAL_EVENT_MONTHLY_P, months); }
+
+function partialAdvance(c, months){
   const bracket = ageBracket(c.age);
   const pool = worldEventPool(ERAS[c.eraIndex].id, bracket);
-  if(pool.length && Math.random() < 0.25){
+  if(pool.length && Math.random() < partialEventChance(months||6)){
     const ev = pick(pool);
     const deltas = applyEffectSpec(c, ev.e, null);
     if(ev.special) handleSpecial(c, ev.special);
     logEvent(c, fill(ev.t, c, null), eventClassFromDeltas(deltas));
   }
-  c.actionUsage = {};
   renderGame();
 }
 
@@ -2677,6 +2698,7 @@ function runWorldEventAndLegendary(c, bracket){
 function finishYear(c){
   applyMilestones(c);
   c.actionUsage = {};
+  c.categoryUsage = {};
   if(deathCheck(c)){ killCharacter(c); return; }
   cloudAutosave(); // one save per completed year — plenty often, not a network call per click
   renderGame();
@@ -3124,6 +3146,9 @@ const setupEl = document.getElementById('screen-setup');
 const gameEl = document.getElementById('screen-game');
 const deathEl = document.getElementById('screen-death');
 let selectedEra = 0;
+const PACE_OPTIONS = [1,3,6,9,12];
+let selectedPace = 6;
+function paceLabel(months){ return months === 12 ? '1 Year' : (months === 1 ? '1 Month' : `${months} Months`); }
 let pendingChallenge = null; // set from a ?challenge=<id> link before the first renderSetup()
 
 /* ---------- challenge seeds: modal + start flow ---------- */
@@ -3219,6 +3244,11 @@ function renderSetup(){
     ${challengeBanner}
     ${dailyBanner}
     <div class="era-grid" id="era-grid"></div>
+    <label>Time pace — how many months pass each time you advance</label>
+    <div class="btn-row" id="pace-grid" style="margin-bottom:10px;">
+      ${PACE_OPTIONS.map(m=>`<button type="button" class="btn-secondary pace-btn${m===selectedPace?' selected':''}" data-pace="${m}" style="${m===selectedPace?'border-color:var(--accent);font-weight:600;':''}">${paceLabel(m)}</button>`).join('')}
+    </div>
+    <p style="color:var(--text-dim);font-size:0.78rem;margin:-6px 0 12px;">Smaller = more check-ins with finer control. Larger = faster playthroughs. You can change this anytime once you're playing.</p>
     <label for="name-input">Character name</label>
     <input type="text" id="name-input" placeholder="e.g. Wyatt Calloway" />
     <div class="btn-row">
@@ -3248,6 +3278,9 @@ function renderSetup(){
     div.innerHTML = `<h3>${era.name}</h3><span>${era.years}</span><p style="margin:8px 0 0;font-size:0.82rem;color:var(--text-dim);">${era.desc}</p>`;
     div.onclick = ()=>{ selectedEra = idx; renderSetup(); };
     grid.appendChild(div);
+  });
+  document.querySelectorAll('.pace-btn').forEach(btn=>{
+    btn.onclick = ()=>{ selectedPace = parseInt(btn.dataset.pace, 10); renderSetup(); };
   });
   document.getElementById('random-name-btn').onclick = ()=>{
     document.getElementById('name-input').value = `${firstNameForEra(ERAS[selectedEra].id)} ${pick(LAST_NAMES)}`;
@@ -3420,13 +3453,16 @@ function renderGame(){
         ${showActions ? `
         <div class="actions-header">
           <h3>What will ${firstName(c.name)} do this year?</h3>
-          <div class="actions-left">Do as much as you want, then advance time${(c.monthsIntoYear||0) > 0 ? ' · 6 months in' : ''}</div>
+          <div class="actions-left">Do as much as you want, then advance time${(c.monthsIntoYear||0) > 0 ? ` · ${c.monthsIntoYear} month${c.monthsIntoYear===1?'':'s'} into this year` : ''}</div>
         </div>
         <div id="action-area"></div>` : ''}
 
-        <div class="end-year-row">
-          <button class="btn-secondary" id="advance-half-btn">Advance 6 Months →</button>
-          <button class="btn-primary" id="advance-year-btn">Advance 1 Year →</button>
+        <div class="end-year-row" style="flex-direction:column;align-items:flex-end;">
+          <div class="pace-switcher" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <span style="font-size:0.78rem;color:var(--text-dim);">Pace:</span>
+            ${PACE_OPTIONS.map(m=>`<button type="button" class="btn-secondary pace-switch-btn" data-pace="${m}" style="padding:3px 8px;font-size:0.76rem;${m===(c.pace||6)?'border-color:var(--accent);font-weight:600;':''}">${paceLabel(m)}</button>`).join('')}
+          </div>
+          <button class="btn-primary" id="advance-btn">Advance ${paceLabel(c.pace||6)} →</button>
         </div>
         <div class="event-feed" id="event-feed"></div>
       </div>
@@ -3450,15 +3486,20 @@ function renderGame(){
       byCat[cat].forEach(a=>{
         const btn = document.createElement('button');
         btn.className = 'action-btn';
-        const cap = actionCap(a.category);
+        const cap = (a.def && a.def.cap) || actionCap(a.category);
         const used = actionUsageCount(c, a.key);
+        const catUsed = categoryUsageCount(c, a.category);
+        const catCap = categoryCeiling(a.category);
         const affordable = !a.cost || c.money >= a.cost;
-        const exhausted = used >= cap;
+        const categoryFull = catUsed >= catCap;
+        const exhausted = used >= cap || categoryFull;
         btn.disabled = exhausted || !affordable;
         let sub = '';
         if(a.cost) sub += `Costs $${a.cost}`;
-        if(cap > 1){ sub += (sub?' · ':'') + (exhausted ? 'Done for this year' : `Practiced ${used}/${cap} this year`); }
+        if(categoryFull && used < cap){ sub += (sub?' · ':'') + `${a.category} maxed out for this year (${catUsed}/${catCap})`; }
+        else if(cap > 1){ sub += (sub?' · ':'') + (exhausted ? 'Done for this year' : `Practiced ${used}/${cap} this year`); }
         else if(used >= 1){ sub += (sub?' · ':'') + 'Done for this year'; }
+        if(a.def && a.def.id === 'chores' && c.job){ sub += (sub?' · ':'') + 'Earns family trust, not pay, while employed'; }
         btn.innerHTML = `${a.label}${sub ? `<span class="sub">${sub}</span>` : ''}`;
         btn.onclick = ()=> performAction(c, a);
         grid.appendChild(btn);
@@ -3480,8 +3521,10 @@ function renderGame(){
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.onclick = ()=>{ activeTab = btn.dataset.tab; renderGame(); };
   });
-  document.getElementById('advance-half-btn').onclick = ()=> advanceTurn(6);
-  document.getElementById('advance-year-btn').onclick = ()=> advanceTurn(12);
+  document.getElementById('advance-btn').onclick = ()=> advanceTurn(c.pace||6);
+  document.querySelectorAll('.pace-switch-btn').forEach(btn=>{
+    btn.onclick = ()=>{ c.pace = parseInt(btn.dataset.pace, 10); renderGame(); };
+  });
   document.getElementById('save-game-btn').onclick = saveGame;
   document.getElementById('feedback-btn').onclick = openFeedbackModal;
   document.getElementById('faq-btn').onclick = openFaqModal;
