@@ -1882,11 +1882,14 @@ const FAQ_ENTRIES = [
 
   // --- Saves & Accounts ---
   { id:'save-options', category:'Saves & Accounts', q:"What are my options for saving my progress?",
-    a:"You can play as a guest with manual save/load (a downloadable file), or sign in to get automatic cloud saves that follow you across devices. It's your choice the first time you start a life, and either way nothing is required to just play.",
+    a:"Three, picked the first time you start a life: Skip (nothing auto-saves — you manually download/load a save file whenever you want), Play as Guest (auto-saves for you, tied to this browser and device only), or Sign in with Google (auto-saves to your account, follows you to any device). Nothing here is required — you can always play, and always manually save/load a file, no matter which you pick.",
     tags:['save','load','cloud','guest'] },
   { id:'guest-vs-account', category:'Saves & Accounts', q:"Do I lose anything by playing as a guest?",
-    a:"Just cross-device convenience — guest saves are local to your browser as a downloadable file rather than synced automatically. Everything else about the game (achievements, Bloodline Score, family tree) works exactly the same either way.",
+    a:"Just cross-device convenience. Guest still auto-saves for you — it's just tied to this one browser on this one device, so clearing your browser data or switching devices loses it (a manual save/load file, or signing in with Google instead, avoids that). Everything else about the game (achievements, Bloodline Score, family tree) works exactly the same either way.",
     tags:['guest','account','sign in','google'] },
+  { id:'save-privacy', category:'Saves & Accounts', q:"Is my saved data safe? What do you actually store?",
+    a:"Just your character's game data — stats, job, relationships, that kind of thing. Playing as Guest doesn't ask for a name, email, or password at all; you're identified by a random ID your browser holds onto, nothing tied to you personally. Signing in with Google only shares your email (for linking the save to your account) — your Google password never touches Bloodline's servers, Google handles that part entirely. Nothing collected here is sold, shared, or used for anything besides making your save work.",
+    tags:['privacy','security','safe','data','trust'] },
 ];
 let faqQuery = '';
 let faqCategory = 'All';
@@ -3883,12 +3886,12 @@ function showIdentityModal(onDone){
     <div class="tree-panel" style="max-width:440px;">
       <h2 style="margin-top:0;">Save your progress?</h2>
       <p style="color:var(--text-dim);font-size:0.88rem;line-height:1.55;">
-        Totally optional — manual Save/Load files work no matter what you pick here. This just turns on automatic saving.
+        Totally optional — manual Save/Load files work no matter what you pick here. This just turns on automatic saving, so you don't have to remember to download a file yourself.
       </p>
       <div style="display:flex;flex-direction:column;gap:10px;margin:18px 0;">
         <button class="btn-secondary id-choice-btn" id="id-guest-btn">
           <strong>Play as Guest</strong>
-          <div class="sub-desc">No sign-in. Auto-saves right here in this browser only — clearing your browser data or switching devices loses it.</div>
+          <div class="sub-desc">No sign-in, no email, no password. Auto-saves right here in this browser only — clearing your browser data or switching devices loses it.</div>
         </button>
         <div>
           <div id="google-btn-holder"></div>
@@ -3896,6 +3899,9 @@ function showIdentityModal(onDone){
         </div>
       </div>
       <button class="id-skip-btn" id="id-skip-btn">Skip — I'll just use manual Save/Load files</button>
+      <p style="color:var(--text-dim);font-size:0.72rem;line-height:1.5;margin:14px 0 0;">
+        Either way, all we ever store is your character's game data — stats, job, relationships. No financial info, no personal details beyond what you type in as a character name. Nothing is sold or shared.
+      </p>
     </div>`;
   overlay.style.display = 'flex';
 
