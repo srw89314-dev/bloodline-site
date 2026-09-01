@@ -217,6 +217,10 @@
   .faq-question:hover{ color:var(--accent); }
   .faq-answer{ font-size:0.82rem; color:var(--text-dim); line-height:1.55; padding:0 2px 12px 18px; }
   .faq-empty{ color:var(--text-dim); font-size:0.85rem; padding:12px 2px; }
+  .theme-swatch-grid{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin:18px 0 6px; }
+  .theme-swatch-btn{ width:46px; height:46px; border-radius:50%; border:2px solid var(--border); cursor:pointer; padding:0; transition:transform .12s ease, border-color .12s ease; }
+  .theme-swatch-btn:hover{ transform:scale(1.08); }
+  .theme-swatch-btn.selected{ border-color:#fff; box-shadow:0 0 0 2px var(--accent); }
 </style>
 </head>
 <body>
@@ -235,8 +239,9 @@
   <div id="challenge-overlay" class="tree-overlay"></div>
   <div id="reaction-overlay" class="story-overlay"></div>
   <div id="faq-overlay" class="tree-overlay"></div>
+  <div id="theme-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.8.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.8.3 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -2987,16 +2992,41 @@ const ERA_THEME = {
   future:{ a:'#4cd7f2', b:'#7c9eff', glow:'#152a33' },
 };
 const DEFAULT_THEME = { a:'#7c9eff', b:'#c98bff', glow:'#232a3d' };
+
+// Player-chosen dashboard theme (v0.8.3): a manual override on top of the
+// automatic per-era tinting above. Defaults to 'auto' (era-based, unchanged
+// behavior for anyone who never opens the picker), persisted per-browser in
+// localStorage the same way bloodline_dev/bloodline_streak already are.
+const THEME_STORAGE_KEY = 'bloodline_theme';
+const THEME_PALETTES = {
+  midnight:{ label:'Midnight Blue', a:'#5b8cff', b:'#8f7bff', glow:'#161c33' },
+  sunset:{ label:'Sunset', a:'#ff8a5c', b:'#ffce54', glow:'#33221a' },
+  forest:{ label:'Forest', a:'#4fd18b', b:'#8be07e', glow:'#182c1e' },
+  rose:{ label:'Rose', a:'#ff6f9c', b:'#ff9dc4', glow:'#331b26' },
+  mono:{ label:'Monochrome', a:'#c7cbdb', b:'#8890a8', glow:'#1a1d27' },
+};
+function getThemeOverride(){
+  try{ return localStorage.getItem(THEME_STORAGE_KEY) || 'auto'; }catch(e){ return 'auto'; }
+}
+function setThemeOverride(key){
+  try{
+    if(key === 'auto') localStorage.removeItem(THEME_STORAGE_KEY);
+    else localStorage.setItem(THEME_STORAGE_KEY, key);
+  }catch(e){}
+}
 function applyEraTheme(eraId){
-  const t = ERA_THEME[eraId] || DEFAULT_THEME;
+  const override = getThemeOverride();
+  const t = (override !== 'auto' && THEME_PALETTES[override]) ? THEME_PALETTES[override] : (ERA_THEME[eraId] || DEFAULT_THEME);
   document.documentElement.style.setProperty('--accent', t.a);
   document.documentElement.style.setProperty('--accent-2', t.b);
   document.documentElement.style.setProperty('--bg-glow', t.glow || DEFAULT_THEME.glow);
 }
 function resetTheme(){
-  document.documentElement.style.setProperty('--accent', DEFAULT_THEME.a);
-  document.documentElement.style.setProperty('--accent-2', DEFAULT_THEME.b);
-  document.documentElement.style.setProperty('--bg-glow', DEFAULT_THEME.glow);
+  const override = getThemeOverride();
+  const t = (override !== 'auto' && THEME_PALETTES[override]) ? THEME_PALETTES[override] : DEFAULT_THEME;
+  document.documentElement.style.setProperty('--accent', t.a);
+  document.documentElement.style.setProperty('--accent-2', t.b);
+  document.documentElement.style.setProperty('--bg-glow', t.glow || DEFAULT_THEME.glow);
 }
 
 /* ---------- character avatar ---------- */
@@ -3334,6 +3364,7 @@ function renderSetup(){
       <button class="btn-secondary" id="challenge-btn">🎯 Try a Challenge</button>
       <button class="btn-secondary" id="load-save-btn">Load a Save…</button>
       <button class="btn-secondary" id="my-stats-btn">📊 My Stats</button>
+      <button class="btn-secondary" id="theme-btn-setup">🎨 Theme</button>
       <button class="btn-secondary" id="faq-btn">❓ Help &amp; FAQ</button>
       ${window.__cloudSaveAvailable ? '<button class="btn-primary" id="cloud-continue-btn">☁️ Continue Your Saved Game</button>' : ''}
     </div>
@@ -3347,6 +3378,7 @@ function renderSetup(){
   }
   document.getElementById('challenge-btn').onclick = openChallengeModal;
   document.getElementById('my-stats-btn').onclick = openMyStats;
+  document.getElementById('theme-btn-setup').onclick = openThemeModal;
   document.getElementById('faq-btn').onclick = openFaqModal;
   const grid = document.getElementById('era-grid');
   ERAS.forEach((era, idx)=>{
@@ -3504,6 +3536,7 @@ function renderGame(){
       <button class="btn-secondary" id="feedback-btn">💬 Feedback</button>
       <button class="btn-secondary" id="save-game-btn">Save Game</button>
       <button class="btn-secondary" id="load-game-btn">Load Save…</button>
+      <button class="btn-secondary" id="theme-btn">🎨 Theme</button>
       <button class="btn-secondary" id="faq-btn">❓ Help</button>
     </div>
     <div class="game-layout">
@@ -3609,6 +3642,7 @@ function renderGame(){
   });
   document.getElementById('save-game-btn').onclick = saveGame;
   document.getElementById('feedback-btn').onclick = openFeedbackModal;
+  document.getElementById('theme-btn').onclick = openThemeModal;
   document.getElementById('faq-btn').onclick = openFaqModal;
   document.getElementById('load-game-btn').onclick = ()=>{
     // Loading immediately replaces the live character with no undo — confirm
@@ -3970,6 +4004,42 @@ function openFeedbackModal(){
   };
 }
 function closeFeedbackModal(){ document.getElementById('feedback-overlay').style.display = 'none'; }
+
+function themeSwatchGradient(key){
+  if(key === 'auto') return 'linear-gradient(135deg,#7c9eff,#c98bff)';
+  const t = THEME_PALETTES[key];
+  return `linear-gradient(135deg,${t.a},${t.b})`;
+}
+function openThemeModal(){
+  const overlay = document.getElementById('theme-overlay');
+  const current = getThemeOverride();
+  const label = key => key === 'auto' ? 'Auto (shifts with each era)' : THEME_PALETTES[key].label;
+  const keys = ['auto', ...Object.keys(THEME_PALETTES)];
+  overlay.innerHTML = `
+    <div class="tree-panel" style="max-width:420px;">
+      <button class="tree-close" id="theme-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">Dashboard Theme</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;">Pick a color theme for the dashboard, or leave it on Auto to let the accent color shift with each era.</p>
+      <div class="theme-swatch-grid">
+        ${keys.map(k=>`<button type="button" class="theme-swatch-btn${current===k?' selected':''}" data-theme="${k}" style="background:${themeSwatchGradient(k)};" title="${escapeHtml(label(k))}" aria-label="${escapeHtml(label(k))}"></button>`).join('')}
+      </div>
+      <div id="theme-label" style="font-size:0.85rem;color:var(--text-dim);margin-top:6px;text-align:center;">${escapeHtml(label(current))}</div>
+    </div>`;
+  overlay.style.display = 'flex';
+  document.getElementById('theme-close-btn').onclick = closeThemeModal;
+  overlay.onclick = (e)=>{ if(e.target === overlay) closeThemeModal(); };
+  overlay.querySelectorAll('.theme-swatch-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const key = btn.dataset.theme;
+      setThemeOverride(key);
+      overlay.querySelectorAll('.theme-swatch-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('theme-label').textContent = label(key);
+      if(state.char) applyEraTheme(ERAS[state.char.eraIndex].id); else resetTheme();
+    };
+  });
+}
+function closeThemeModal(){ document.getElementById('theme-overlay').style.display = 'none'; }
 
 // On load: if this browser already has an identity, quietly resume it (no
 // modal) and check for a cloud save so the setup screen can offer to
