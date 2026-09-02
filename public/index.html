@@ -221,6 +221,8 @@
   .theme-swatch-btn{ width:46px; height:46px; border-radius:50%; border:2px solid var(--border); cursor:pointer; padding:0; transition:transform .12s ease, border-color .12s ease; }
   .theme-swatch-btn:hover{ transform:scale(1.08); }
   .theme-swatch-btn.selected{ border-color:#fff; box-shadow:0 0 0 2px var(--accent); }
+  .theme-swatch-btn.locked{ cursor:not-allowed; font-size:1.1rem; display:flex; align-items:center; justify-content:center; }
+  .theme-swatch-btn.locked:hover{ transform:none; }
 </style>
 </head>
 <body>
@@ -241,7 +243,7 @@
   <div id="faq-overlay" class="tree-overlay"></div>
   <div id="theme-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.8.3 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.8.4 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -1743,6 +1745,8 @@ const ACHIEVEMENTS = [
   { id:'big_winner', label:'Big Winner', desc:'Land a huge investment payoff.', scope:'life', check:c => !!c.hadGreatInvestment },
   { id:'dynasty', label:'Dynasty', desc:'Carry the bloodline to Generation 5.', scope:'family', check:s => s.generation >= 5 },
   { id:'century_bloodline', label:'Century Bloodline', desc:'Reach a Bloodline Score of 500 or more.', scope:'family', check:s => computeBloodlineScore() >= 500 },
+  { id:'golden_decade', label:'Golden Decade', desc:"Leave your favorite decade with every core stat (Health, Happiness, Smarts, Looks, Imagination) at 70 or higher.", scope:'life',
+    check:c => c.favoriteDecade != null && c.age >= (c.favoriteDecade*10 + 10) && FAVORITE_DECADE_CORE_STATS.every(k => (c.stats[k]||0) >= 70) },
 ];
 function checkAchievements(){
   if(!state.achievementsUnlocked) state.achievementsUnlocked = [];
@@ -2066,6 +2070,7 @@ function newCharacter(eraIndex, name, inherited){
     creditScore:null, loans:[],
     degrees:[], enrolled:null, degreeCooldowns:{},
     pace: (typeof selectedPace !== 'undefined' ? selectedPace : 6), monthsIntoYear:0,
+    favoriteDecade: (typeof selectedFavoriteDecade !== 'undefined' ? selectedFavoriteDecade : null),
   };
   fam.rels.forEach(r=>addRelationship(c, r.role, r.name, r.species?{species:r.species}:null));
   return c;
@@ -2650,6 +2655,7 @@ function completeYear(c){
   processEnrollment(c);
   applyEconomyInterest(c);
   processLoans(c);
+  applyFavoriteDecadeBonus(c);
 
   // relationship decay if neglected — mild, keeps the system meaningful
   c.relationships.filter(r=>r.active).forEach(r=>{ r.closeness = clamp(r.closeness - randInt(1,3)); });
@@ -2693,7 +2699,10 @@ function runWorldEventAndLegendary(c, bracket){
 
   // Rare legendary event roll — independent of the regular world-event roll,
   // so a memorable life beat can land even in an otherwise quiet year.
-  if(LEGENDARY_BRACKETS.includes(bracket) && Math.random() < LEGENDARY_CHANCE){
+  // Doubled odds during a character's favorite decade (v0.8.4) — it's
+  // supposed to be the stretch where the big stuff happens.
+  const legendaryChance = LEGENDARY_CHANCE * (isFavoriteDecadeYear(c) ? 2 : 1);
+  if(LEGENDARY_BRACKETS.includes(bracket) && Math.random() < legendaryChance){
     const legendaryPool = LEGENDARY_EVENTS[ERAS[c.eraIndex].id] || [];
     if(legendaryPool.length){
       const lev = pick(legendaryPool);
@@ -2744,6 +2753,7 @@ function silentCompleteYear(c){
   processEnrollment(c);
   applyEconomyInterest(c);
   processLoans(c);
+  applyFavoriteDecadeBonus(c);
   c.relationships.filter(r=>r.active).forEach(r=>{ r.closeness = clamp(r.closeness - randInt(1,3)); });
   runWorldEventAndLegendary(c, ageBracket(c.age));
   applyMilestones(c);
@@ -3004,7 +3014,19 @@ const THEME_PALETTES = {
   forest:{ label:'Forest', a:'#4fd18b', b:'#8be07e', glow:'#182c1e' },
   rose:{ label:'Rose', a:'#ff6f9c', b:'#ff9dc4', glow:'#331b26' },
   mono:{ label:'Monochrome', a:'#c7cbdb', b:'#8890a8', glow:'#1a1d27' },
+  // Cosmetic unlock (v0.8.4): only selectable once the "Golden Decade"
+  // achievement has been earned — see THEME_UNLOCK_ACHIEVEMENT below and
+  // openThemeModal's lock handling.
+  golden:{ label:'Golden', a:'#f0c05a', b:'#ffe08a', glow:'#332a14' },
 };
+// Maps a theme key to the achievement id that unlocks it. A key absent here
+// is unlocked by default (the original 5 palettes + Auto).
+const THEME_UNLOCK_ACHIEVEMENT = { golden:'golden_decade' };
+function isThemeUnlocked(key){
+  const reqId = THEME_UNLOCK_ACHIEVEMENT[key];
+  if(!reqId) return true;
+  return (state.achievementsUnlocked || []).includes(reqId);
+}
 function getThemeOverride(){
   try{ return localStorage.getItem(THEME_STORAGE_KEY) || 'auto'; }catch(e){ return 'auto'; }
 }
@@ -3247,6 +3269,46 @@ const START_AGE_OPTIONS = [
   { age:19, label:'Young Adult', sub:"Already out on their own — schooling and first job already sorted." },
 ];
 let selectedStartAge = 0;
+
+// Favorite-decade picker (v0.8.4): a purely optional flavor choice — which
+// 10-year stretch of this character's life is "their" decade. During those
+// years they get a small ongoing stat lift, entering the decade grants a
+// one-time boost (a "this became their decade" milestone), and legendary
+// events are twice as likely to land while it's underway. Finishing a
+// favorite decade with every core stat at 70+ unlocks the "Golden Decade"
+// achievement, which in turn unlocks an exclusive Golden dashboard theme —
+// see checkAchievements/THEME_PALETTES. Purely additive: leaving it on
+// "No favorite" (the default) reproduces old behavior exactly.
+const DECADE_OPTIONS = [
+  { idx:0, label:'0s', sub:'Childhood (ages 0-9)' },
+  { idx:1, label:'10s', sub:'Adolescence (ages 10-19)' },
+  { idx:2, label:'20s', sub:'Ages 20-29' },
+  { idx:3, label:'30s', sub:'Ages 30-39' },
+  { idx:4, label:'40s', sub:'Ages 40-49' },
+  { idx:5, label:'50s', sub:'Ages 50-59' },
+  { idx:6, label:'60s', sub:'Ages 60-69' },
+  { idx:7, label:'70s', sub:'Ages 70-79' },
+  { idx:8, label:'80s', sub:'Ages 80-89' },
+  { idx:9, label:'90s', sub:'Ages 90-99' },
+];
+let selectedFavoriteDecade = null; // null = "No favorite" (default, no effect)
+function favoriteDecadeLabel(idx){ return idx == null ? 'No favorite' : `The ${DECADE_OPTIONS[idx].label}`; }
+function isFavoriteDecadeYear(c){ return c && c.favoriteDecade != null && Math.floor(c.age/10) === c.favoriteDecade; }
+const FAVORITE_DECADE_CORE_STATS = ['health','happiness','smarts','looks','imagination'];
+// Called once per completed year (both normal play and the silent
+// fast-forward path) — a small ongoing lift throughout the decade, plus a
+// bigger one-time jolt on the very first year inside it.
+function applyFavoriteDecadeBonus(c){
+  if(!isFavoriteDecadeYear(c)) return;
+  const enteringNow = c.age % 10 === 0;
+  if(enteringNow){
+    const boosted = sampleWithoutReplacement(FAVORITE_DECADE_CORE_STATS, 2);
+    boosted.forEach(k => { c.stats[k] = clamp(c.stats[k] + 12); });
+    logEvent(c, `This is shaping up to be their decade — ${c.name.split(' ')[0]} feels it (${boosted.map(k=>k[0].toUpperCase()+k.slice(1)).join(' & ')} surged).`, 'good', true, false);
+  } else {
+    c.stats.happiness = clamp(c.stats.happiness + 3);
+  }
+}
 // Set true while fastForwardCharacter is silently simulating backstory years,
 // so intermediate performAction()/renderGame() calls during that loop don't
 // paint the screen or thrash the DOM — only the final state renders.
@@ -3356,6 +3418,12 @@ function renderSetup(){
       ${START_AGE_OPTIONS.map(o=>`<button type="button" class="btn-secondary start-age-btn${o.age===selectedStartAge?' selected':''}" data-age="${o.age}" style="${o.age===selectedStartAge?'border-color:var(--accent);font-weight:600;':''}">${o.label}</button>`).join('')}
     </div>
     <p style="color:var(--text-dim);font-size:0.78rem;margin:-6px 0 12px;">${START_AGE_OPTIONS.find(o=>o.age===selectedStartAge).sub}${selectedStartAge>0 ? " Those earlier years play out on their own — you'll see how it went in the event log once you're in." : ""}</p>
+    <label>Favorite decade — optional. That stretch of their life gets a boost (purely optional)</label>
+    <div class="btn-row" id="decade-grid" style="margin-bottom:10px;flex-wrap:wrap;">
+      <button type="button" class="btn-secondary decade-btn${selectedFavoriteDecade===null?' selected':''}" data-decade="" style="${selectedFavoriteDecade===null?'border-color:var(--accent);font-weight:600;':''}">No favorite</button>
+      ${DECADE_OPTIONS.map(o=>`<button type="button" class="btn-secondary decade-btn${o.idx===selectedFavoriteDecade?' selected':''}" data-decade="${o.idx}" style="${o.idx===selectedFavoriteDecade?'border-color:var(--accent);font-weight:600;':''}">${o.label}</button>`).join('')}
+    </div>
+    <p style="color:var(--text-dim);font-size:0.78rem;margin:-6px 0 12px;">${selectedFavoriteDecade===null ? "No effect either way — purely flavor if you skip it." : `${DECADE_OPTIONS[selectedFavoriteDecade].sub} gets a stat lift entering it, better odds at a legendary moment, and — if it goes well — a shot at the Golden Decade achievement and its exclusive theme.`}</p>
     <label for="name-input">Character name</label>
     <input type="text" id="name-input" placeholder="e.g. Wyatt Calloway" />
     <div class="btn-row">
@@ -3394,6 +3462,9 @@ function renderSetup(){
   document.querySelectorAll('.start-age-btn').forEach(btn=>{
     btn.onclick = ()=>{ selectedStartAge = parseInt(btn.dataset.age, 10); renderSetup(); };
   });
+  document.querySelectorAll('.decade-btn').forEach(btn=>{
+    btn.onclick = ()=>{ selectedFavoriteDecade = btn.dataset.decade === '' ? null : parseInt(btn.dataset.decade, 10); renderSetup(); };
+  });
   document.getElementById('random-name-btn').onclick = ()=>{
     document.getElementById('name-input').value = `${firstNameForEra(ERAS[selectedEra].id)} ${pick(LAST_NAMES)}`;
   };
@@ -3408,7 +3479,7 @@ function renderSetup(){
       state.char = newCharacter(selectedEra, name, null);
       state.activeChallenge = null;
       if(selectedStartAge > 0) fastForwardCharacter(state.char, selectedStartAge);
-      trackEvent('life_started', { era: ERAS[selectedEra].id, startAge: selectedStartAge });
+      trackEvent('life_started', { era: ERAS[selectedEra].id, startAge: selectedStartAge, favoriteDecade: selectedFavoriteDecade });
       recordBloodlineStart();
       renderGame();
       cloudAutosave();
@@ -4015,13 +4086,22 @@ function openThemeModal(){
   const current = getThemeOverride();
   const label = key => key === 'auto' ? 'Auto (shifts with each era)' : THEME_PALETTES[key].label;
   const keys = ['auto', ...Object.keys(THEME_PALETTES)];
+  const lockedNote = key => {
+    if(isThemeUnlocked(key)) return '';
+    const reqId = THEME_UNLOCK_ACHIEVEMENT[key];
+    const req = ACHIEVEMENTS.find(a => a.id === reqId);
+    return req ? ` — locked, unlock via the "${req.label}" achievement` : ' — locked';
+  };
   overlay.innerHTML = `
     <div class="tree-panel" style="max-width:420px;">
       <button class="tree-close" id="theme-close-btn" aria-label="Close">✕</button>
       <h2 style="margin-top:0;">Dashboard Theme</h2>
       <p style="color:var(--text-dim);font-size:0.85rem;">Pick a color theme for the dashboard, or leave it on Auto to let the accent color shift with each era.</p>
       <div class="theme-swatch-grid">
-        ${keys.map(k=>`<button type="button" class="theme-swatch-btn${current===k?' selected':''}" data-theme="${k}" style="background:${themeSwatchGradient(k)};" title="${escapeHtml(label(k))}" aria-label="${escapeHtml(label(k))}"></button>`).join('')}
+        ${keys.map(k=>{
+          const unlocked = isThemeUnlocked(k);
+          return `<button type="button" class="theme-swatch-btn${current===k?' selected':''}${unlocked?'':' locked'}" data-theme="${k}" data-unlocked="${unlocked}" style="background:${themeSwatchGradient(k)};${unlocked?'':'opacity:0.35;'}" title="${escapeHtml(label(k)+lockedNote(k))}" aria-label="${escapeHtml(label(k)+lockedNote(k))}">${unlocked?'':'🔒'}</button>`;
+        }).join('')}
       </div>
       <div id="theme-label" style="font-size:0.85rem;color:var(--text-dim);margin-top:6px;text-align:center;">${escapeHtml(label(current))}</div>
     </div>`;
@@ -4031,6 +4111,10 @@ function openThemeModal(){
   overlay.querySelectorAll('.theme-swatch-btn').forEach(btn=>{
     btn.onclick = ()=>{
       const key = btn.dataset.theme;
+      if(!isThemeUnlocked(key)){
+        document.getElementById('theme-label').textContent = label(key) + lockedNote(key);
+        return;
+      }
       setThemeOverride(key);
       overlay.querySelectorAll('.theme-swatch-btn').forEach(b=>b.classList.remove('selected'));
       btn.classList.add('selected');
