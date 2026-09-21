@@ -4162,7 +4162,7 @@ function openFeedbackModal(mode){
     status.textContent = 'Sending…';
     const c = state.char;
     const context = c ? { era: ERAS[c.eraIndex].id, age: c.age, bracket: ageBracket(c.age), generation: state.generation, source: isPulse ? 'post_life' : 'game_menu', challenge: !!state.activeChallenge } : { source:'game_menu' };
-    const res = await cloudPost('feedback', { playerId: analyticsPlayerId(), type: isPulse ? 'pulse' : selectedType, text, answers, context });
+    const res = await cloudPost('feedback', { playerId: analyticsPlayerId(), type: isPulse ? 'pulse' : selectedType, text, answers, context, dryRun: DEV_MODE });
     if(res && res.ok){
       trackMilestone('feedback_submitted');
       status.textContent = 'Thanks — sent!';

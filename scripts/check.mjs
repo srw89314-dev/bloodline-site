@@ -23,6 +23,8 @@ assert.match(html, /type: isPulse \? 'pulse'/, 'post-life feedback must submit a
 assert.match(html, /familyReputation/, 'heirs must receive a visible family legacy');
 assert.match(track, /'second_generation_started'/, 'backend must accept retention milestones');
 assert.match(feedback, /'pulse'/, 'backend must accept structured pulse feedback');
+assert.match(feedback, /dryRun === true/, 'preview feedback must support a non-writing validation path');
+assert.match(html, /dryRun: DEV_MODE/, 'dev-mode feedback must request the non-writing path');
 assert.match(feedback, /playerId\.length > 128/, 'feedback IDs must be bounded');
 assert.match(track, /playerId\.length > 128/, 'tracking IDs must be bounded');
 assert.match(identify, /milestonesSeen: \[\]/, 'new identities must initialize milestone state');

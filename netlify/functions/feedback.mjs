@@ -27,7 +27,7 @@ export default async (req) => {
   try { body = await req.json(); } catch {
     return new Response(JSON.stringify({ error: 'invalid JSON body' }), { status: 400, headers: { 'content-type': 'application/json' } });
   }
-  const { playerId, type, text, answers, context } = body || {};
+  const { playerId, type, text, answers, context, dryRun } = body || {};
   if (!playerId || !type) {
     return new Response(JSON.stringify({ error: 'playerId and type required' }), { status: 400, headers: { 'content-type': 'application/json' } });
   }
@@ -44,6 +44,12 @@ export default async (req) => {
   }
   if (type === 'pulse' && Object.keys(cleanAnswers).length === 0 && !trimmed) {
     return new Response(JSON.stringify({ error: 'pulse answer required' }), { status: 400, headers: { 'content-type': 'application/json' } });
+  }
+
+  // Preview/dev builds exercise the complete validation and UI flow without
+  // adding test entries to the real feedback inbox.
+  if (dryRun === true) {
+    return new Response(JSON.stringify({ ok: true, dryRun: true }), { headers: { 'content-type': 'application/json' } });
   }
 
   const feedback = getStore('feedback');
