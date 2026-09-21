@@ -171,6 +171,16 @@
   .id-skip-btn{ background:transparent; border:none; color:var(--text-dim); font-weight:400; text-decoration:underline; padding:6px; cursor:pointer; font-size:0.8rem; }
   #fb-text{ width:100%; min-height:120px; background:#0f1119; border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:0.88rem; padding:10px; resize:vertical; box-sizing:border-box; }
   .fb-type-btn.selected{ border-color:var(--accent); background:#1c2338; }
+  .feedback-question{ margin:14px 0; text-align:left; }
+  .feedback-question strong{ display:block; font-size:0.82rem; margin-bottom:7px; }
+  .feedback-options{ display:flex; flex-wrap:wrap; gap:7px; }
+  .feedback-options button{ margin:0; padding:8px 10px; font-size:0.78rem; }
+  .feedback-options button.selected{ border-color:var(--accent); background:#1c2338; color:var(--text); }
+  .legacy-inheritance{ border:1px solid var(--accent); background:#161a26; border-radius:8px; padding:12px; margin-bottom:14px; text-align:left; }
+  .legacy-inheritance strong{ color:var(--text); }
+  .post-life-prompt{ max-width:480px; margin:18px auto; padding:14px; border:1px solid var(--accent); background:#161a26; border-radius:8px; }
+  .post-life-prompt h4{ margin:0 0 5px; }
+  .post-life-prompt p{ margin:0 0 10px; color:var(--text-dim); font-size:0.84rem; }
 
   /* challenge seeds */
   .challenge-banner{ background:#1f1a10; border:1px solid var(--warn); border-radius:10px; padding:14px; margin:14px 0; }
@@ -243,7 +253,7 @@
   <div id="faq-overlay" class="tree-overlay"></div>
   <div id="theme-overlay" class="tree-overlay"></div>
   <input type="file" id="load-input" accept=".json,application/json" style="display:none;">
-  <footer>Prototype v0.8.4 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
+  <footer>Prototype v0.9.0 · Bloodline · manual save/load always works; cloud save is optional and off until you choose it</footer>
 </div>
 
 <script>
@@ -1008,7 +1018,8 @@ const BRACKET_ACTIONS = {
      effect:{money:[5,12], happiness:[-1,2]}},
     {id:'lemonade', label:'Run a lemonade stand', category:'Money', minAge:7,
      texts:["Business was good — {name} sold out early.","{name} barely broke even but had fun."],
-     effect:{money:[4,18], happiness:[2,5]}},
+     effect:{money:[4,18], happiness:[2,5]},
+     eraOverrides:{ wildwest:{ label:'Sell hand pies at the town social', texts:["{name} sold every hand pie before sundown.","{name} barely broke even, but the whole town knew their name afterward."] } }},
     {id:'read_book', label:'Read a book', category:'Activities',
      texts:["{name} finished a whole book in one sitting.","{name} got completely lost in a story."],
      effect:{smarts:[4,8], happiness:[1,3], imagination:[2,5]}},
@@ -1270,9 +1281,7 @@ function worldEventPool(eraId, bracket){
   const out = {infant:[...generic.infant], toddler:[...generic.toddler], kid:[...generic.kid], teen:[...generic.teen], adult:[...generic.adult], senior:[...generic.senior]};
   const f = flavor[eraId] || {};
   Object.keys(f).forEach(k=>{ out[k] = out[k].concat(f[k]); });
-  return (out[bracket] || []).filter(ev =>
-    (ev.minEraIndex == null || eraIndex >= ev.minEraIndex) &&
-    (ev.maxEraIndex == null || eraIndex <= ev.maxEraIndex));
+  return (out[bracket] || []).filter(ev => isEraEligible(ev, eraIndex));
 }
 
 // Rare, high-impact "legendary" events — memorable enough to talk about and to
@@ -1545,7 +1554,7 @@ const ERA_MINI_STORIES = {
 };
 function storiesFor(bracket, eraId){
   const eraIndex = ERAS.findIndex(e=>e.id===eraId);
-  const inEra = s => (!s.brackets || s.brackets.includes(bracket)) && (s.minEraIndex == null || eraIndex >= s.minEraIndex);
+  const inEra = s => (!s.brackets || s.brackets.includes(bracket)) && isEraEligible(s, eraIndex);
   const generic = MINI_STORIES.filter(inEra);
   const eraSpecific = (ERA_MINI_STORIES[eraId] || []).filter(inEra);
   return generic.concat(eraSpecific);
@@ -2057,6 +2066,7 @@ function newCharacter(eraIndex, name, inherited){
   const base = { health: randInt(55,85), happiness: randInt(50,80), smarts: randInt(35,70), looks: randInt(35,70), imagination: randInt(25,55), strength: randInt(35,70), agility: randInt(35,70) };
   if(inherited && inherited.bonusStat) base[inherited.bonusStat] = clamp(base[inherited.bonusStat] + 15);
   if(inherited && inherited.minusStat) base[inherited.minusStat] = clamp(base[inherited.minusStat] - 15);
+  if(inherited && inherited.legacy) base.happiness = clamp(base.happiness + inherited.legacy.familyReputation);
   const startMoney = inherited && inherited.money != null ? inherited.money : randInt(...era.moneyRange);
   const surname = deriveSurname(name);
   const fam = makeFamily(era.id, surname);
@@ -2071,8 +2081,12 @@ function newCharacter(eraIndex, name, inherited){
     degrees:[], enrolled:null, degreeCooldowns:{},
     pace: (typeof selectedPace !== 'undefined' ? selectedPace : 6), monthsIntoYear:0,
     favoriteDecade: (typeof selectedFavoriteDecade !== 'undefined' ? selectedFavoriteDecade : null),
+    legacy: inherited && inherited.legacy ? inherited.legacy : null,
   };
   fam.rels.forEach(r=>addRelationship(c, r.role, r.name, r.species?{species:r.species}:null));
+  if(c.legacy){
+    logEvent(c, `${firstName(c.name)} inherited ${c.legacy.inheritedTrait.toLowerCase()} from ${c.legacy.parentName}, along with $${c.legacy.inheritedEstate.toLocaleString()} and the family's reputation.`, 'good', true);
+  }
   return c;
 }
 
@@ -2400,6 +2414,11 @@ function eraVariant(def, eraId){
   const o = def.eraOverrides && def.eraOverrides[eraId];
   return o ? Object.assign({}, def, o) : def;
 }
+function isEraEligible(def, eraIndex){
+  return (def.minEraIndex == null || eraIndex >= def.minEraIndex) &&
+    (def.maxEraIndex == null || eraIndex <= def.maxEraIndex) &&
+    (!def.eras || def.eras.includes(ERAS[eraIndex].id));
+}
 function buildActionMenu(c){
   const bracket = ageBracket(c.age);
   const era = ERAS[c.eraIndex];
@@ -2408,6 +2427,7 @@ function buildActionMenu(c){
   c.relationships.filter(r=>r.active).forEach(rel=>{
     const defs = ROLE_ACTIONS[rel.role] || [];
     defs.forEach(def=>{
+      if(!isEraEligible(def, c.eraIndex)) return;
       if(def.minAge && c.age < def.minAge) return;
       if(def.maxAge && c.age > def.maxAge) return;
       if(def.special === 'marry' && rel.married) return;
@@ -2417,6 +2437,7 @@ function buildActionMenu(c){
   });
 
   (BRACKET_ACTIONS[bracket]||[]).forEach(def=>{
+    if(!isEraEligible(def, c.eraIndex)) return;
     if(def.special === 'find_partner' && relByRole(c,'partner')) return;
     if(def.special === 'make_friend' && relByRole(c,'bestfriend')) return;
     if(def.special === 'teen_job' && c.job) return;
@@ -2448,6 +2469,7 @@ function buildActionMenu(c){
 
   const eraDefs = (ERA_BRACKET_ACTIONS[era.id]||{})[bracket] || [];
   eraDefs.forEach(def=>{
+    if(!isEraEligible(def, c.eraIndex)) return;
     actions.push({ def, rel:null, key: def.id, label: fill(def.label, c, null), category: def.category, cost: def.cost||0 });
   });
 
@@ -2492,6 +2514,7 @@ function performAction(c, action){
   if(used >= cap) return;
   if(categoryUsageCount(c, action.category) >= categoryCeiling(action.category)) return;
   if(action.cost && c.money < action.cost) return;
+  if(!ffActive) trackMilestone('first_choice');
 
   if(def && def.id === 'chores' && c.job){
     const fam = c.relationships.filter(r=>r.active && (r.role==='mother'||r.role==='father'));
@@ -2559,6 +2582,7 @@ function applyMilestones(c){
     if(!relByRole(c,'bestfriend')) addRelationship(c, 'bestfriend', firstNameForEra(era.id)+' '+pick(LAST_NAMES));
   }
   if(c.age === 18){
+    if(!ffActive) trackMilestone('adulthood_reached');
     c.creditScore = STARTING_CREDIT_SCORE;
     c.relationships.filter(r=>r.role==='teacher').forEach(r=>r.active=false);
     advanceSportsStage(c);
@@ -2784,6 +2808,7 @@ function killCharacter(c){
     age:c.age, money:c.money, savings:c.savings||0, debt:outstandingDebt(c), peakStat: topStat(c), causeOfDeath:c.causeOfDeath, highlight: topHighlightText(c),
   });
   trackEvent('life_ended', { bloodlineScore: computeBloodlineScore(), achievementsUnlocked: state.achievementsUnlocked || [] });
+  trackMilestone('first_life_completed');
   recordLifeEnded(c);
   cloudAutosave();
   renderDeath(c);
@@ -3586,6 +3611,7 @@ function renderGame(){
     relationships: `<div class="rel-section">${relHtml || '<div style="font-size:0.8rem;color:var(--text-dim);">No relationships yet.</div>'}</div>`,
     finances: `<div class="owned-section"><h4>Owned</h4><div class="owned-list">${ownedHtml}</div></div>${creditHtml}${careerBoardHtml(c)}`,
     family: `<div class="legacy-box"><h4>Family Legacy — Gen ${state.generation}</h4>
+      ${c.legacy ? `<div class="legacy-inheritance"><strong>Inherited from ${escapeHtml(c.legacy.parentName)}</strong><br>$${c.legacy.inheritedEstate.toLocaleString()} estate · +15 ${escapeHtml(c.legacy.inheritedTrait)} · +${c.legacy.familyReputation} starting Happiness from family reputation<br><span style="color:var(--text-dim);font-size:0.78rem;">${escapeHtml(c.legacy.parentHighlight || 'A life remembered by the next generation.')}</span></div>` : ''}
       ${ state.familyLog.length === 0 ? '<div>No ancestors yet — you\'re the first.</div>'
          : state.familyLog.map(f=>`<div>Gen ${f.gen}: <strong>${f.name}</strong> (${f.era}) — lived to ${f.age}, left $${((f.money||0)+(f.savings||0)-(f.debt||0)).toLocaleString()}</div>`).join('') }
       <button class="btn-secondary" id="view-tree-btn" style="margin-top:10px;width:100%;">🌳 View Family Tree</button>
@@ -3712,7 +3738,7 @@ function renderGame(){
     btn.onclick = ()=>{ c.pace = parseInt(btn.dataset.pace, 10); renderGame(); };
   });
   document.getElementById('save-game-btn').onclick = saveGame;
-  document.getElementById('feedback-btn').onclick = openFeedbackModal;
+  document.getElementById('feedback-btn').onclick = ()=>openFeedbackModal('manual');
   document.getElementById('theme-btn').onclick = openThemeModal;
   document.getElementById('faq-btn').onclick = openFaqModal;
   document.getElementById('load-game-btn').onclick = ()=>{
@@ -3743,6 +3769,7 @@ function renderDeath(c){
   const bonusStat = topStat(c);
   const STAT_LABEL_MAP = {health:'Health',happiness:'Happiness',smarts:'Smarts',looks:'Looks',imagination:'Imagination',strength:'Strength',agility:'Agility'};
   const statLabel = STAT_LABEL_MAP[bonusStat];
+  const familyReputation = Math.max(1, Math.min(10, Math.round(computeBloodlineScore() / 75)));
   const shareText = generateShareText(c);
   const socialUrls = socialShareUrls(c);
   const activeChallengeObj = state.activeChallenge ? CHALLENGES.find(ch=>ch.id===state.activeChallenge) : null;
@@ -3792,6 +3819,14 @@ function renderDeath(c){
         <button class="btn-primary" id="continue-btn-1">Continue as ${escapeHtml(child1Name)} (strong ${STAT_LABEL_MAP[child1Stat]}) →</button>
         <button class="btn-primary" id="continue-btn-2">Continue as ${escapeHtml(child2Name)} (strong ${STAT_LABEL_MAP[child2Stat]}) →</button>
       </div>
+      <div class="post-life-prompt">
+        <h4>Help shape Bloodline</h4>
+        <p>Three quick answers tell us what to strengthen before adding another era.</p>
+        <div class="btn-row" style="justify-content:center;margin:0;">
+          <button class="btn-secondary" id="post-life-feedback-btn">Answer 3 Questions</button>
+          <a class="btn-secondary" id="follow-itch-link" href="https://wilmoticus.itch.io/bloodline" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">Follow on itch.io</a>
+        </div>
+      </div>
       <div class="btn-row" style="justify-content:center;">
         <button class="btn-secondary" id="view-tree-btn-death">🌳 View Family Tree</button>
         <button class="btn-secondary" id="view-achievements-btn-death">🏆 Achievements</button>
@@ -3804,10 +3839,21 @@ function renderDeath(c){
     </div>`;
 
   function continueAs(childName, childStat){
+    const legacy = {
+      parentName: c.name,
+      parentEra: era.name,
+      parentAge: c.age,
+      inheritedEstate: inheritance,
+      inheritedTrait: STAT_LABEL_MAP[childStat],
+      familyReputation,
+      parentHighlight: topHighlightText(c) || `${c.name} lived to ${c.age}.`,
+    };
     state.generation += 1;
     const fullName = `${childName} ${childSurname}`;
-    state.char = newCharacter(nextEraIndex, fullName, {money: inheritance, bonusStat: childStat});
+    state.char = newCharacter(nextEraIndex, fullName, {money: inheritance, bonusStat: childStat, legacy});
     state.activeChallenge = null; // a challenge seed applies to the one life it started, not the heir
+    trackMilestone('heir_continued');
+    if(state.generation === 2) trackMilestone('second_generation_started');
     trackEvent('life_started', { era: ERAS[nextEraIndex].id });
     renderGame();
     cloudAutosave();
@@ -3828,7 +3874,10 @@ function renderDeath(c){
   document.getElementById('load-save-btn-death').onclick = ()=>{
     if(confirm('Loading a save will replace your current bloodline history. Continue?')) triggerLoad();
   };
-  document.getElementById('feedback-btn-death').onclick = openFeedbackModal;
+  document.getElementById('feedback-btn-death').onclick = ()=>openFeedbackModal('manual');
+  document.getElementById('post-life-feedback-btn').onclick = ()=>openFeedbackModal('post_life');
+  document.getElementById('follow-itch-link').onclick = ()=>trackMilestone('follow_clicked');
+  trackMilestone('follow_prompt_shown');
   document.getElementById('faq-btn-death').onclick = openFaqModal;
   document.getElementById('download-image-btn').onclick = ()=>{
     const btn = document.getElementById('download-image-btn');
@@ -3866,6 +3915,7 @@ function renderDeath(c){
       try{
         await navigator.clipboard.writeText(link);
         copyChallengeBtn.textContent = 'Copied!';
+        trackMilestone('challenge_shared');
       } catch(e){
         copyChallengeBtn.textContent = link;
       }
@@ -3931,6 +3981,16 @@ function showDevBadge(){
    the game is fully playable offline either way, this is purely additive. */
 const CLOUD = { playerId: null, authType: null };
 const GOOGLE_CLIENT_ID = (document.querySelector('meta[name="google-signin-client-id"]') || {}).content?.trim() || '';
+const ANALYTICS_ID_KEY = 'bloodline_analytics_id';
+
+function analyticsPlayerId(){
+  let id = localStorage.getItem(ANALYTICS_ID_KEY);
+  if(!id){
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `anon-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    try{ localStorage.setItem(ANALYTICS_ID_KEY, id); } catch(e){}
+  }
+  return id;
+}
 
 async function cloudPost(path, body){
   try{
@@ -3954,8 +4014,11 @@ function cloudStatusText(){
 
 function trackEvent(event, data){
   if(DEV_MODE) return;
-  if(!CLOUD.playerId) return;
-  cloudPost('track', { playerId: CLOUD.playerId, event, data });
+  cloudPost('track', { playerId: analyticsPlayerId(), event, data });
+}
+
+function trackMilestone(name){
+  trackEvent('milestone', { name });
 }
 
 let autosaveTimer = null;
@@ -3980,7 +4043,6 @@ function finishIdentity(res, overlay, onDone){
     localStorage.setItem('bloodline_playerId', res.playerId);
     localStorage.setItem('bloodline_authType', res.authType);
     localStorage.removeItem('bloodline_cloud_skipped');
-    trackEvent('session_start');
   }
   if(onDone) onDone();
 }
@@ -4005,7 +4067,7 @@ function showIdentityModal(onDone){
       </div>
       <button class="id-skip-btn" id="id-skip-btn">Skip — I'll just use manual Save/Load files</button>
       <p style="color:var(--text-dim);font-size:0.72rem;line-height:1.5;margin:14px 0 0;">
-        Either way, all we ever store is your character's game data — stats, job, relationships. No financial info, no personal details beyond what you type in as a character name. Nothing is sold or shared.
+        Cloud saves store only your character's game data. Bloodline also records anonymous progress milestones and any feedback you choose to send, so the game can improve. No financial information is collected, and nothing is sold or shared.
       </p>
     </div>`;
   overlay.style.display = 'flex';
@@ -4033,9 +4095,31 @@ function showIdentityModal(onDone){
   }
 }
 
-function openFeedbackModal(){
+function openFeedbackModal(mode){
+  const isPulse = mode === 'post_life';
   const overlay = document.getElementById('feedback-overlay');
-  overlay.innerHTML = `
+  if(isPulse) trackMilestone('feedback_prompt_shown');
+  overlay.innerHTML = isPulse ? `
+    <div class="tree-panel" style="max-width:500px;">
+      <button class="tree-close" id="feedback-close-btn" aria-label="Close">✕</button>
+      <h2 style="margin-top:0;">How did that life feel?</h2>
+      <p style="color:var(--text-dim);font-size:0.85rem;">Three quick answers. The last note is optional.</p>
+      <div class="feedback-question" data-question="authenticity">
+        <strong>Did the era feel believable?</strong>
+        <div class="feedback-options"><button class="btn-secondary" data-value="yes">Yes</button><button class="btn-secondary" data-value="mostly">Mostly</button><button class="btn-secondary" data-value="no">No</button></div>
+      </div>
+      <div class="feedback-question" data-question="continueIntent">
+        <strong>Do you want to continue this bloodline?</strong>
+        <div class="feedback-options"><button class="btn-secondary" data-value="yes">Yes</button><button class="btn-secondary" data-value="maybe">Maybe</button><button class="btn-secondary" data-value="no">No</button></div>
+      </div>
+      <div class="feedback-question" data-question="priority">
+        <strong>What should improve first?</strong>
+        <div class="feedback-options"><button class="btn-secondary" data-value="choices">Choices</button><button class="btn-secondary" data-value="pacing">Pacing</button><button class="btn-secondary" data-value="relationships">Relationships</button><button class="btn-secondary" data-value="economy">Economy</button><button class="btn-secondary" data-value="era_authenticity">Era accuracy</button><button class="btn-secondary" data-value="more_eras">More eras</button></div>
+      </div>
+      <textarea id="fb-text" placeholder="Anything else? (optional)"></textarea>
+      <div class="btn-row" style="justify-content:flex-end;margin-top:12px;"><button class="btn-primary" id="fb-submit-btn">Send</button></div>
+      <div id="fb-status" style="font-size:0.8rem;color:var(--text-dim);margin-top:8px;"></div>
+    </div>` : `
     <div class="tree-panel" style="max-width:440px;">
       <button class="tree-close" id="feedback-close-btn" aria-label="Close">✕</button>
       <h2 style="margin-top:0;">Send Feedback</h2>
@@ -4052,25 +4136,38 @@ function openFeedbackModal(){
     </div>`;
   overlay.style.display = 'flex';
   let selectedType = 'bug';
-  const bugBtn = document.getElementById('fb-type-bug');
-  const sugBtn = document.getElementById('fb-type-suggestion');
-  bugBtn.onclick = ()=>{ selectedType='bug'; bugBtn.classList.add('selected'); sugBtn.classList.remove('selected'); };
-  sugBtn.onclick = ()=>{ selectedType='suggestion'; sugBtn.classList.add('selected'); bugBtn.classList.remove('selected'); };
+  const answers = {};
+  if(isPulse){
+    overlay.querySelectorAll('.feedback-options button').forEach(btn=>{
+      btn.onclick = ()=>{
+        const question = btn.closest('.feedback-question');
+        answers[question.dataset.question] = btn.dataset.value;
+        question.querySelectorAll('button').forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+      };
+    });
+  } else {
+    const bugBtn = document.getElementById('fb-type-bug');
+    const sugBtn = document.getElementById('fb-type-suggestion');
+    bugBtn.onclick = ()=>{ selectedType='bug'; bugBtn.classList.add('selected'); sugBtn.classList.remove('selected'); };
+    sugBtn.onclick = ()=>{ selectedType='suggestion'; sugBtn.classList.add('selected'); bugBtn.classList.remove('selected'); };
+  }
   document.getElementById('feedback-close-btn').onclick = closeFeedbackModal;
   overlay.onclick = (e)=>{ if(e.target === overlay) closeFeedbackModal(); };
   document.getElementById('fb-submit-btn').onclick = async ()=>{
     const text = document.getElementById('fb-text').value.trim();
     const status = document.getElementById('fb-status');
-    if(!text){ status.textContent = 'Type something first.'; return; }
-    if(!CLOUD.playerId){
-      status.textContent = "Feedback needs cloud save turned on (Guest is fine, no email needed) — reload and choose it from the save-progress prompt.";
-      return;
-    }
+    if(isPulse && Object.keys(answers).length < 3){ status.textContent = 'Please answer all three questions.'; return; }
+    if(!isPulse && !text){ status.textContent = 'Type something first.'; return; }
     status.textContent = 'Sending…';
     const c = state.char;
-    const context = c ? { era: ERAS[c.eraIndex].id, age: c.age, bracket: ageBracket(c.age) } : {};
-    const res = await cloudPost('feedback', { playerId: CLOUD.playerId, type: selectedType, text, context });
-    if(res && res.ok){ status.textContent = 'Thanks — sent!'; setTimeout(closeFeedbackModal, 900); }
+    const context = c ? { era: ERAS[c.eraIndex].id, age: c.age, bracket: ageBracket(c.age), generation: state.generation, source: isPulse ? 'post_life' : 'game_menu', challenge: !!state.activeChallenge } : { source:'game_menu' };
+    const res = await cloudPost('feedback', { playerId: analyticsPlayerId(), type: isPulse ? 'pulse' : selectedType, text, answers, context });
+    if(res && res.ok){
+      trackMilestone('feedback_submitted');
+      status.textContent = 'Thanks — sent!';
+      setTimeout(closeFeedbackModal, 900);
+    }
     else{ status.textContent = "Couldn't send right now — the feedback backend isn't live yet."; }
   };
 }
@@ -4135,7 +4232,6 @@ async function initCloud(){
   if(!storedId) return;
   CLOUD.playerId = storedId;
   CLOUD.authType = storedAuth;
-  trackEvent('session_start');
   cloudPost('identify', { existingPlayerId: storedId });
   const res = await cloudGet(`save?playerId=${encodeURIComponent(storedId)}`);
   if(res && res.state && res.state.state && res.state.state.char){
@@ -4204,6 +4300,7 @@ document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ closeFamilyT
 checkChallengeLink();
 currentStreak = updateStreak();
 showDevBadge();
+trackEvent('session_start');
 initCloud();
 renderSetup();
 </script>

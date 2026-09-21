@@ -23,6 +23,7 @@ function newPlayer(id, authType, now) {
     livesPlayed: 0,
     deaths: 0,
     achievementsUnlocked: [],
+    milestonesSeen: [],
     bestBloodlineScore: 0,
   };
 }

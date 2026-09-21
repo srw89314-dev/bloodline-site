@@ -33,7 +33,7 @@ export default async (req) => {
 
   const statsStore = getStore('stats');
   const stats = (await statsStore.get('global', { type: 'json' })) || {
-    totalPlayers: 0, repeatPlayers: 0, totalSessions: 0, totalLivesStarted: 0, totalDeaths: 0, achievementCounts: {}, eraStarts: {},
+    totalPlayers: 0, repeatPlayers: 0, totalSessions: 0, totalLivesStarted: 0, totalDeaths: 0, achievementCounts: {}, eraStarts: {}, milestoneCounts: {},
   };
 
   const achievements = {};
@@ -59,6 +59,7 @@ export default async (req) => {
     totalLivesStarted: stats.totalLivesStarted,
     totalDeaths: stats.totalDeaths,
     eraStarts: stats.eraStarts,
+    milestones: stats.milestoneCounts || {},
     achievements,
     feedbackCount: ids.length,
     recentFeedback: recent,

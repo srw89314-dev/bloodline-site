@@ -37,6 +37,7 @@
   .bar-fill{ height:100%; border-radius:6px; background:var(--accent); }
   .fb-item{ background:#161a26; border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:0.85rem; line-height:1.4; }
   .fb-item.suggestion{ border-left-color:var(--accent-2); }
+  .fb-item.pulse{ border-left-color:var(--good); }
   .fb-item .fb-meta{ color:var(--text-dim); font-size:0.72rem; margin-top:4px; }
   .empty{ color:var(--text-dim); font-size:0.85rem; }
   .error{ color:var(--bad); font-size:0.85rem; margin-top:10px; }
@@ -87,11 +88,27 @@ function render(data){
         <div class="bar-track"><div class="bar-fill" style="width:${Math.round((count/maxEra)*100)}%;"></div></div>
       </div>`).join('') || '<div class="empty">No lives started yet.</div>';
 
-  const feedbackRows = (data.recentFeedback || []).map(f=>`
+  const milestoneLabels = {
+    first_choice:'Made a first choice', adulthood_reached:'Reached adulthood', first_life_completed:'Completed a life',
+    heir_continued:'Continued as an heir', second_generation_started:'Started generation 2', feedback_submitted:'Submitted feedback',
+  };
+  const funnelRows = Object.entries(milestoneLabels).map(([id,label])=>{
+    const count = (data.milestones && data.milestones[id]) || 0;
+    const pct = data.totalPlayers ? Math.round((count/data.totalPlayers)*1000)/10 : 0;
+    return `<div class="bar-row"><div class="bar-label"><span class="name">${label}</span><span class="n">${pct}% · ${fmt(count)} players</span></div><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,pct)}%;"></div></div></div>`;
+  }).join('');
+
+  const feedbackRows = (data.recentFeedback || []).map(f=>{
+    const answers = f.answers || {};
+    const answerText = f.type === 'pulse' ? `Era: ${answers.authenticity || '—'} · Continue: ${answers.continueIntent || '—'} · Priority: ${(answers.priority || '—').replace(/_/g,' ')}` : '';
+    const body = f.text ? escapeHtml(f.text) : '<span style="color:var(--text-dim);">No written note</span>';
+    return `
     <div class="fb-item ${f.type}">
-      <div>${f.type === 'bug' ? '🐛' : '💡'} ${escapeHtml(f.text)}</div>
+      <div><strong>${f.type === 'pulse' ? 'POST-LIFE PULSE' : f.type.toUpperCase()}</strong>${answerText ? ` · ${escapeHtml(answerText)}` : ''}</div>
+      <div>${body}</div>
       <div class="fb-meta">${new Date(f.createdAt).toLocaleString()}${f.context && f.context.era ? ` · ${escapeHtml(f.context.era)}, age ${f.context.age}` : ''}</div>
-    </div>`).join('') || '<div class="empty">No feedback submitted yet.</div>';
+    </div>`;
+  }).join('') || '<div class="empty">No feedback submitted yet.</div>';
 
   dash.style.display = 'block';
   dash.innerHTML = `
@@ -116,6 +133,10 @@ function render(data){
     <div class="card">
       <h2>Lives started by era</h2>
       ${eraRows}
+    </div>
+    <div class="card">
+      <h2>Player progression <span style="color:var(--text-dim);font-weight:400;font-size:0.78rem;">(% of players)</span></h2>
+      ${funnelRows}
     </div>
     <div class="card">
       <h2>Achievement unlock rate <span style="color:var(--text-dim);font-weight:400;font-size:0.78rem;">(% of completed lives)</span></h2>
