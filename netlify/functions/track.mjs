@@ -1,7 +1,8 @@
 // POST /.netlify/functions/track { playerId, event, data }
 // Records a lightweight play event and rolls it into both the per-player
 // record and a single global aggregate-stats blob that the admin dashboard
-// reads. Events: 'session_start' | 'life_started' | 'life_ended'.
+// reads. Milestones are counted once per player so the dashboard shows a
+// real progression funnel instead of raw click volume.
 //
 // Known limitation: this does read-modify-write on shared blobs rather than
 // atomic counters, so truly simultaneous requests could rarely clobber each
@@ -10,6 +11,18 @@
 import { getStore } from '@netlify/blobs';
 
 const STATS_KEY = 'global';
+const MILESTONES = new Set([
+  'first_choice',
+  'adulthood_reached',
+  'first_life_completed',
+  'heir_continued',
+  'second_generation_started',
+  'feedback_prompt_shown',
+  'feedback_submitted',
+  'follow_prompt_shown',
+  'follow_clicked',
+  'challenge_shared',
+]);
 
 function emptyStats(now) {
   return {
@@ -20,6 +33,7 @@ function emptyStats(now) {
     totalDeaths: 0,
     achievementCounts: {},
     eraStarts: {},
+    milestoneCounts: {},
     updatedAt: now,
   };
 }
@@ -34,6 +48,9 @@ export default async (req) => {
   if (!playerId || !event) {
     return new Response(JSON.stringify({ error: 'playerId and event required' }), { status: 400, headers: { 'content-type': 'application/json' } });
   }
+  if (typeof playerId !== 'string' || playerId.length > 128) {
+    return new Response(JSON.stringify({ error: 'invalid playerId' }), { status: 400, headers: { 'content-type': 'application/json' } });
+  }
 
   const players = getStore('players');
   const statsStore = getStore('stats');
@@ -41,7 +58,7 @@ export default async (req) => {
 
   let player = await players.get(playerId, { type: 'json' });
   if (!player) {
-    player = { id: playerId, authType: 'anon', createdAt: now, sessionCount: 0, livesPlayed: 0, deaths: 0, achievementsUnlocked: [], bestBloodlineScore: 0 };
+    player = { id: playerId, authType: 'anon', createdAt: now, sessionCount: 0, livesPlayed: 0, deaths: 0, achievementsUnlocked: [], milestonesSeen: [], bestBloodlineScore: 0 };
   }
   let stats = await statsStore.get(STATS_KEY, { type: 'json' });
   if (!stats) stats = emptyStats(now);
@@ -72,6 +89,18 @@ export default async (req) => {
       }
     });
     player.achievementsUnlocked = Array.from(prevSet);
+  } else if (event === 'milestone') {
+    const milestone = data && data.name;
+    if (!MILESTONES.has(milestone)) {
+      return new Response(JSON.stringify({ error: 'unknown milestone' }), { status: 400, headers: { 'content-type': 'application/json' } });
+    }
+    const seen = new Set(player.milestonesSeen || []);
+    if (!seen.has(milestone)) {
+      seen.add(milestone);
+      player.milestonesSeen = Array.from(seen);
+      stats.milestoneCounts = stats.milestoneCounts || {};
+      stats.milestoneCounts[milestone] = (stats.milestoneCounts[milestone] || 0) + 1;
+    }
   } else {
     return new Response(JSON.stringify({ error: 'unknown event' }), { status: 400, headers: { 'content-type': 'application/json' } });
   }
